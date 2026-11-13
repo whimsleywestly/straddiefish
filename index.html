@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Run-In</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: one column, phone first. Verdict on top, tide chart under it, detail below. Bottom tab bar. */
+:root{
+  --bg:#eef2f1; --panel:#ffffff; --ink:#10242b; --muted:#5b6f76; --line:#d5dfdd;
+  --accent:#0b6e7f; --accent-ink:#ffffff; --water:#9fd3dc;
+  --prime:#d98a00; --good:#1f8a70; --fair:#8aa0a6; --poor:#cfd8d9; --bad:#b83a2b; --night:#dfe6ea;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif; --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0b181d; --panel:#12262d; --ink:#e4eef0; --muted:#93a9af; --line:#24404a;
+  --accent:#4fc3d0; --accent-ink:#06222a; --water:#1f5a68;
+  --prime:#f0a92b; --good:#3fc49f; --fair:#5f7880; --poor:#2b424a; --bad:#ef7a68; --night:#0e2027;
+  color-scheme:dark;
+}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:400 16px/1.45 var(--body);padding-bottom:84px}
+h1,h2,h3{font-family:var(--display);font-weight:600;margin:0;text-wrap:balance;letter-spacing:.01em}
+h2{font-size:1.25rem;text-transform:uppercase;color:var(--muted);letter-spacing:.06em}
+h3{font-size:1.2rem}
+a{color:var(--accent)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:720px;margin:0 auto;padding:0 16px;display:flex;flex-direction:column;gap:16px}
+header.top{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+header.top .wrap{flex-direction:row;align-items:center;justify-content:space-between;gap:12px;padding-top:10px;padding-bottom:10px}
+.spotbtn{background:none;border:0;padding:0;text-align:left;cursor:pointer;min-width:0}
+.spotbtn b{display:block;font:600 1.5rem/1.1 var(--display);overflow-wrap:anywhere}
+.spotbtn span{font-size:.8rem;color:var(--muted)}
+.btn{background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;padding:9px 14px;font-weight:600;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+.btn.small{padding:6px 10px;font-size:.85rem}
+.btn.danger{background:transparent;color:var(--bad);border:1px solid var(--bad)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.note{font-size:.85rem;color:var(--muted)}
+.warn{border-left:4px solid var(--bad);padding:8px 10px;background:color-mix(in srgb,var(--bad) 10%,transparent);border-radius:6px;font-size:.9rem}
+.verdict{display:flex;gap:14px;align-items:center}
+.score{font:700 3.2rem/1 var(--display);font-variant-numeric:tabular-nums;min-width:74px;text-align:center;border-radius:10px;padding:8px 6px;color:#fff}
+.s-prime{background:var(--prime)} .s-good{background:var(--good)} .s-fair{background:var(--fair)} .s-poor{background:var(--poor);color:var(--ink)}
+.verdict h3{font-size:1.6rem}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:.8rem;border:1px solid var(--line);border-radius:999px;padding:2px 9px;white-space:nowrap}
+.chip.up{border-color:var(--good);color:var(--good)} .chip.down{border-color:var(--bad);color:var(--bad)}
+.chip.sel{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.days{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.days button{flex:none;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 10px;cursor:pointer;font-family:var(--display);font-size:1rem;line-height:1.1;text-align:center}
+.days button small{display:block;font-family:var(--body);font-size:.7rem;color:var(--muted)}
+.days button.sel{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.days button.sel small{color:inherit}
+svg{display:block;width:100%;height:auto}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.stat{border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.stat small{display:block;color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.05em}
+.stat b{font:600 1.35rem/1.2 var(--display);font-variant-numeric:tabular-nums}
+.stat span{display:block;font-size:.8rem;color:var(--muted)}
+table{width:100%;border-collapse:collapse;font-size:.88rem;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:5px 6px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:500}
+.scroll{overflow-x:auto}
+.dot{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:baseline}
+.fish{display:flex;flex-direction:column;gap:6px;border-left:5px solid var(--fair);padding-left:10px}
+.fish.peak{border-color:var(--prime)} .fish.on{border-color:var(--good)}
+.fish .hd{display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap}
+.fish dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:.9rem}
+.fish dt{color:var(--muted)} .fish dd{margin:0}
+form{display:flex;flex-direction:column;gap:10px}
+label{display:flex;flex-direction:column;gap:3px;font-size:.85rem;color:var(--muted)}
+input,select,textarea{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;color:var(--ink);width:100%}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1 1 130px}
+.check{flex-direction:row;align-items:center;gap:8px;color:var(--ink)}.check input{width:auto}
+.bar{display:grid;grid-template-columns:110px 1fr 34px;gap:8px;align-items:center;font-size:.85rem}
+.bar i{display:block;height:10px;border-radius:3px;background:var(--accent)}
+.bar span:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.item{border-bottom:1px solid var(--line);padding:8px 0;display:flex;flex-direction:column;gap:3px}
+.item:last-child{border-bottom:0}
+.item .meta{font-size:.78rem;color:var(--muted)}
+.links{display:flex;flex-wrap:wrap;gap:8px}
+.links a{border:1px solid var(--line);border-radius:8px;padding:7px 10px;text-decoration:none;font-size:.9rem;background:var(--bg)}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--line);display:flex;justify-content:center;z-index:6;padding-bottom:env(safe-area-inset-bottom)}
+nav.tabs button{flex:1;max-width:144px;background:none;border:0;border-top:3px solid transparent;padding:10px 4px 12px;cursor:pointer;font:600 1.05rem var(--display);letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+nav.tabs button.sel{color:var(--accent);border-top-color:var(--accent)}
+details summary{cursor:pointer;color:var(--accent);font-size:.9rem}
+.banner{background:var(--prime);color:#1b1200;text-align:center;font-weight:600;padding:4px}
+@media (prefers-reduced-motion:no-preference){.btn,.chip,nav.tabs button{transition:background .15s,color .15s}}
+</style>
+</head>
+<body>
+<div id="banner"></div>
+<header class="top"><div class="wrap">
+  <button class="spotbtn" id="spotbtn" aria-label="Change spot"><b id="spotname">…</b><span id="spotsub"></span></button>
+  <button class="btn ghost small" id="refresh">Refresh</button>
+</div></header>
+<main class="wrap" id="view" style="padding-top:16px"></main>
+<nav class="tabs" id="tabs"></nav>
+
+<script id="core">
+/* ---------- Pure logic: time, astronomy, tides, scoring. No DOM. ---------- */
+const RAD=Math.PI/180, DAY=864e5, HR=36e5, TZ=10*HR; // Queensland is UTC+10 all year
+function parts(ms){const d=new Date(ms+TZ);return{y:d.getUTCFullYear(),m:d.getUTCMonth()+1,d:d.getUTCDate(),h:d.getUTCHours(),mi:d.getUTCMinutes(),dow:d.getUTCDay()}}
+function midnight(ms){return Math.floor((ms+TZ)/DAY)*DAY-TZ}
+function fmtTime(ms){if(ms==null)return'–';const p=parts(ms+30000);return(p.h%12||12)+':'+String(p.mi).padStart(2,'0')+(p.h<12?' am':' pm')}
+const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function fmtDate(ms){const p=parts(ms);return DOW[p.dow]+' '+p.d+' '+MON[p.m-1]}
+function compass(deg){return['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'][Math.round(((deg%360)+360)%360/22.5)%16]}
+function angDiff(a,b){return Math.abs(((a-b+540)%360)-180)}
+
+// Sun and moon positions (standard low-precision formulae, good to a few minutes)
+const OBL=RAD*23.4397;
+function jd(ms){return ms/DAY-0.5+2440588-2451545}
+function rAsc(l,b){return Math.atan2(Math.sin(l)*Math.cos(OBL)-Math.tan(b)*Math.sin(OBL),Math.cos(l))}
+function decl(l,b){return Math.asin(Math.sin(b)*Math.cos(OBL)+Math.cos(b)*Math.sin(OBL)*Math.sin(l))}
+function sunC(d){const M=RAD*(357.5291+0.98560028*d),C=RAD*(1.9148*Math.sin(M)+0.02*Math.sin(2*M)+0.0003*Math.sin(3*M)),L=M+C+RAD*102.9372+Math.PI;return{ra:rAsc(L,0),dec:decl(L,0)}}
+function moonC(d){const L=RAD*(218.316+13.176396*d),M=RAD*(134.963+13.064993*d),F=RAD*(93.272+13.229350*d),l=L+RAD*6.289*Math.sin(M),b=RAD*5.128*Math.sin(F);return{ra:rAsc(l,b),dec:decl(l,b),dist:385001-20905*Math.cos(M)}}
+function altOf(c,d,lat,lon){const H=RAD*(280.16+360.9856235*d)+RAD*lon-c.ra,phi=RAD*lat;return Math.asin(Math.sin(phi)*Math.sin(c.dec)+Math.cos(phi)*Math.cos(c.dec)*Math.cos(H))/RAD}
+function sunAlt(ms,lat,lon){const d=jd(ms);return altOf(sunC(d),d,lat,lon)}
+function moonAlt(ms,lat,lon){const d=jd(ms);return altOf(moonC(d),d,lat,lon)}
+function moonPhase(ms){const d=jd(ms),s=sunC(d),m=moonC(d),sd=149598000,
+  phi=Math.acos(Math.sin(s.dec)*Math.sin(m.dec)+Math.cos(s.dec)*Math.cos(m.dec)*Math.cos(s.ra-m.ra)),
+  inc=Math.atan2(sd*Math.sin(phi),m.dist-sd*Math.cos(phi)),
+  ang=Math.atan2(Math.cos(s.dec)*Math.sin(s.ra-m.ra),Math.sin(s.dec)*Math.cos(m.dec)-Math.cos(s.dec)*Math.sin(m.dec)*Math.cos(s.ra-m.ra));
+  return{frac:(1+Math.cos(inc))/2,phase:0.5+0.5*inc*(ang<0?-1:1)/Math.PI}}
+function phaseName(p){const n=['New moon','Waxing crescent','First quarter','Waxing gibbous','Full moon','Waning gibbous','Last quarter','Waning crescent'];
+  if(p<0.03||p>0.97)return n[0];if(p<0.22)return n[1];if(p<0.28)return n[2];if(p<0.47)return n[3];if(p<0.53)return n[4];if(p<0.72)return n[5];if(p<0.78)return n[6];return n[7]}
+// Rise/set and highest/lowest points of a body over [t0,t1], sampled every 5 minutes
+function bodyEvents(fn,t0,t1,horizon){const step=5*60000,ev={rise:[],set:[],top:[],bottom:[]};let p2=null,p1=null,tp=0;
+  for(let t=t0-step;t<=t1+step;t+=step){const a=fn(t);
+    if(p1!==null){ if(p1<horizon&&a>=horizon)ev.rise.push(tp+step*(horizon-p1)/(a-p1)); if(p1>=horizon&&a<horizon)ev.set.push(tp+step*(p1-horizon)/(p1-a));
+      if(p2!==null){ if(p1>p2&&p1>=a)ev.top.push(tp); if(p1<p2&&p1<=a)ev.bottom.push(tp);} }
+    p2=p1;p1=a;tp=t}
+  const inR=x=>x>=t0&&x<t1;for(const k in ev)ev[k]=ev[k].filter(inR);return ev}
+function dayAstro(day0,lat,lon){const s=bodyEvents(t=>sunAlt(t,lat,lon),day0,day0+DAY,-0.833),m=bodyEvents(t=>moonAlt(t,lat,lon),day0,day0+DAY,0.125),ph=moonPhase(day0+12*HR);
+  return{sunrise:s.rise[0]??null,sunset:s.set[0]??null,moonrise:m.rise[0]??null,moonset:m.set[0]??null,majors:[...m.top,...m.bottom].sort((a,b)=>a-b),minors:[...m.rise,...m.set].sort((a,b)=>a-b),phase:ph.phase,frac:ph.frac}}
+
+// Tides from an hourly sea-level series
+function tideExtremes(t,h){let out=[];for(let i=1;i<h.length-1;i++){const a=h[i-1],b=h[i],c=h[i+1];if(a==null||b==null||c==null)continue;
+    const hi=b>a&&b>=c,lo=b<a&&b<=c;if(!hi&&!lo)continue;const den=a-2*b+c,off=den?Math.max(-.5,Math.min(.5,0.5*(a-c)/den)):0;
+    out.push({t:t[i]+off*HR,h:b-0.25*(a-c)*off,type:hi?'high':'low'})}
+  for(let i=out.length-2;i>=0;i--){if(out[i+1]&&out[i+1].t-out[i].t<2*HR&&Math.abs(out[i+1].h-out[i].h)<0.05)out.splice(i,2)} // drop ripples
+  return out}
+function at(t,v,ms){if(!t||!v||!t.length)return null;const x=(ms-t[0])/HR,i=Math.floor(x);if(i<0||i>=t.length-1)return i===t.length-1&&x===i?v[i]:null;const a=v[i],b=v[i+1];if(a==null||b==null)return a??b??null;return a+(b-a)*(x-i)}
+function tideState(ms,ext){let prev=null,next=null;for(const e of ext){if(e.t<=ms)prev=e;else{next=e;break}}
+  if(!prev&&!next)return null;const near=[prev,next].filter(Boolean).sort((a,b)=>Math.abs(a.t-ms)-Math.abs(b.t-ms))[0];
+  if(Math.abs(near.t-ms)<=45*60000)return{state:near.type,prev,next,near};
+  const rising=next?next.type==='high':prev.type==='low';return{state:rising?'rising':'falling',prev,next,near}}
+function lightState(ms,a){if(a.sunrise!=null&&Math.abs(ms-a.sunrise)<=90*60000)return'dawn';if(a.sunset!=null&&Math.abs(ms-a.sunset)<=90*60000)return'dusk';
+  if(a.sunrise!=null&&a.sunset!=null)return ms>a.sunrise&&ms<a.sunset?'day':'night';return'day'}
+
+/* Bite score, 0-100. A rule-of-thumb model built from common beach-fishing practice; weights are listed in the app. */
+function hourScore(ms,c,sp){const P=[],add=(l,d)=>{if(d)P.push({l,d:Math.round(d)})};let s=30;
+  const a=c.astro(ms),ls=lightState(ms,a);
+  if(c.ext&&c.ext.length){const ts=tideState(ms,c.ext),h1=at(c.mt,c.sea,ms+HR/2),h0=at(c.mt,c.sea,ms-HR/2);
+    if(h1!=null&&h0!=null&&c.maxRate){add(h1>h0?'Tide running in':'Tide running out',14*Math.min(1,Math.abs(h1-h0)/c.maxRate))}
+    if(ts&&Math.abs(ts.near.t-ms)<=60*60000)add('Turn of the '+ts.near.type+' tide',8);
+    if(sp&&ts&&sp.tide.includes(ts.state))add(sp.name+' like this tide',12)}
+  const dSun=Math.min(a.sunrise!=null?Math.abs(ms-a.sunrise):1e12,a.sunset!=null?Math.abs(ms-a.sunset):1e12);
+  if(dSun<90*60000)add(ls==='dawn'?'Around first light':'Around dusk',18*(1-dSun/(90*60000)));else if(sunAlt(ms,c.lat,c.lon)>40)add('High sun',-4);
+  if(sp&&sp.light.includes(ls)&&ls!=='day')add(sp.name+' feed at '+ls,10);
+  if(a.majors.some(t=>Math.abs(t-ms)<=60*60000))add('Moon overhead or underfoot',8);else if(a.minors.some(t=>Math.abs(t-ms)<=45*60000))add('Moonrise or moonset',5);
+  if(Math.min(a.phase,1-a.phase)<0.07||Math.abs(a.phase-.5)<0.07)add('Bigger tides near new or full moon',4);
+  const w=at(c.wt,c.wind,ms),wd=at(c.wt,c.wdir,ms);
+  if(w!=null){add(w<10?'Light wind':w<15?'Moderate wind':w<20?'Fresh wind':w<25?'Strong wind':'Very strong wind',w<10?8:w<15?3:w<20?-6:w<25?-14:-25);
+    if(c.faces!=null&&wd!=null){const d=angDiff(wd,c.faces);if(d<60&&w>=12)add('Onshore wind',-6);else if(d>120&&w>=6)add('Offshore wind',3)}}
+  const wv=at(c.mt,c.wave,ms);
+  if(wv!=null&&(c.type==='surf'||c.type==='rocks'))add(wv<0.3?'Flat, clear water':wv<=1.5?'Workable swell':wv<=2.5?'Big swell':'Dangerous swell',wv<0.3?-3:wv<=1.5?6:wv<=2.5?-5:-18);
+  const p1=at(c.wt,c.pres,ms),p0=at(c.wt,c.pres,ms-3*HR);if(p1!=null&&p0!=null){if(p1-p0<-1.5)add('Falling barometer',4);else if(p1-p0>2.5)add('Barometer jumping',-3)}
+  const r=at(c.wt,c.rain,ms);if(r!=null&&r>2)add('Heavy rain',-6);
+  for(const p of P)s+=p.d;return{score:Math.max(0,Math.min(100,Math.round(s))),parts:P,light:ls}}
+function grade(s){return s>=70?['Prime','prime']:s>=55?['Good','good']:s>=40?['Fair','fair']:['Poor','poor']}
+function bestWindow(hrs){let best=null;for(let i=0;i<hrs.length-1;i++){const a=(hrs[i].score+hrs[i+1].score)/2;if(!best||a>best.avg)best={start:hrs[i].t,end:hrs[i].t+2*HR,avg:Math.round(a)}}return best}
+function region(lat){return lat>-19.5?'n':lat>-24.5?'c':'s'}
+const mm=(a,b)=>{const o=[];for(let i=a;;i=i%12+1){o.push(i);if(i===b)break}return o},ALL=mm(1,12);
+/* Species. Limits marked v:1 were read from the Qld Government tidal limits page (updated 25 Sep 2026). Others say to check. */
+const FISH=[
+{id:'whiting',name:'Sand whiting',aka:'summer whiting',reg:'scn',hab:['surf','estuary','bay'],peak:mm(9,4),on:ALL,tide:['rising','low'],light:['dawn','dusk','day'],bait:'Live beach worms first, then yabbies, pipis, soldier crabs',tip:'Light line, long-shank size 4 hook, smallest sinker that holds. Fish the shallow edge of the gutter, not the far side.',limit:'Min 23 cm. Combined limit 30 with goldenline and northern whiting.',v:1},
+{id:'dart',name:'Swallowtail dart',aka:'dart',reg:'scn',hab:['surf'],peak:mm(10,4),on:ALL,tide:['rising','high'],light:['day','dawn','dusk'],bait:'Pipis, beach worms, small strips of pilchard',tip:'They sit in the white water behind the shore break. Cast short and keep the bait moving.',limit:'Min 30 cm. Limit 30.',v:1},
+{id:'bream',name:'Yellowfin bream',aka:'bream',reg:'scn',hab:['surf','rocks','estuary','bay'],peak:mm(5,8),on:ALL,tide:['rising','high'],light:['dusk','night','dawn'],bait:'Mullet gut, chicken gut, prawns, pilchard fillet, yabbies',tip:'Fish close to rock and reef edges on the top half of the tide. Winter is the spawning run along the surf.',limit:'Min 25 cm. Combined limit 30 with pikey bream and tarwhine.',v:1},
+{id:'tarwhine',name:'Tarwhine',aka:'',reg:'s',hab:['surf','rocks'],peak:mm(5,9),on:ALL,tide:['rising','high'],light:['dawn','dusk','day'],bait:'Beach worms, pipis, prawns',tip:'Turns up beside rocks at the ends of beaches while you are chasing bream or whiting.',limit:'Min 25 cm. Counts in the combined bream limit of 30.',v:1},
+{id:'flathead',name:'Dusky flathead',aka:'lizard',reg:'sc',hab:['surf','estuary','bay'],peak:mm(9,11),on:ALL,tide:['falling','low'],light:['dawn','dusk','day'],bait:'Soft plastics, whitebait, pilchards, live herring or poddy mullet',tip:'Work the drop-off where water drains off a bank on the last of the run-out. Keep the bait or lure on the bottom.',limit:'Min 40 cm, max 75 cm. Limit 5.',v:1},
+{id:'tailor',name:'Tailor',aka:'choppers, greenbacks',reg:'s',hab:['surf','rocks'],peak:mm(6,9),on:mm(4,11),tide:['rising','high'],light:['dawn','dusk','night'],bait:'Pilchards on ganged 4/0 hooks, metal slugs, bonito strips',tip:'Deep gutters with a clear exit to sea, at first and last light. Use a short wire or heavy mono trace.',limit:'Min 35 cm. Limit 20.',v:1},
+{id:'mulloway',name:'Mulloway',aka:'jewfish, jew',reg:'s',hab:['surf','rocks','estuary'],peak:mm(5,9),on:ALL,tide:['high','low'],light:['night','dusk'],bait:'Live mullet, fresh squid, big bunches of beach worms, tailor fillet',tip:'Fish the slack water either side of a tide change after dark, beside rock at the end of a beach.',limit:'Min 75 cm. Limit 2.',v:1},
+{id:'trevally',name:'Trevally',aka:'bigeye, golden, giant',reg:'scn',hab:['surf','rocks','estuary','bay'],peak:mm(10,4),on:ALL,tide:['rising','high'],light:['dawn','dusk','night'],bait:'Small metal lures, poppers, live herring, pilchard pieces',tip:'Fast retrieves around current lines and headland wash.',limit:'No size limit. Combined limit 20 across trevally species.',v:1},
+{id:'luderick',name:'Luderick',aka:'blackfish',reg:'s',hab:['rocks','estuary'],peak:mm(5,9),on:mm(4,10),tide:['rising','high'],light:['day','dawn'],bait:'Green weed or cabbage weed under a float',tip:'Fish washes beside rock walls and headlands. A light float rig is the method.',limit:'Min 30 cm. Limit 10.',v:1},
+{id:'snapper',name:'Snapper',aka:'squire',reg:'sc',hab:['rocks','bay'],peak:mm(5,9),on:ALL,tide:['rising','high','falling'],light:['dawn','dusk','night'],bait:'Pilchards, squid, soft plastics',tip:'Deep water off headlands at dawn in winter. Lightly weighted baits drift down best.',limit:'Min 35 cm. Limit 4, only 1 over 70 cm.',v:1,closed:p=>(p.m===7&&p.d>=15)||(p.m===8&&p.d<=15)?'Closed season: 15 July to 15 August. No take.':null},
+{id:'schoolmack',name:'School mackerel',aka:'schoolies',reg:'scn',hab:['rocks','bay'],peak:mm(12,4),on:ALL,tide:['rising','high'],light:['dawn','day'],bait:'Pilchards on gangs, metal spoons',tip:'Spin from headlands and jetties where bait schools gather.',limit:'Min 50 cm. Limit 10.',v:1},
+{id:'spotty',name:'Spotted mackerel',aka:'spotties',reg:'sc',hab:['rocks','bay'],peak:mm(12,4),on:mm(11,5),tide:['rising','high'],light:['dawn','day'],bait:'Metal slugs retrieved fast, pilchards',tip:'Watch for birds working over bait within casting range of the rocks.',limit:'Min 60 cm. Limit 5.',v:1},
+{id:'spanish',name:'Spanish mackerel',aka:'',reg:'scn',hab:['rocks'],peak:mm(12,5),on:ALL,tide:['rising','high'],light:['dawn','day'],bait:'Live baits under a balloon, large metal lures',tip:'A land-based target only from deep headlands.',limit:'Min 75 cm. Limit 1 per person on the east coast.',v:1,closed:()=> 'East coast closed seasons apply and the dates change each year. Check before you target them.'},
+{id:'garfish',name:'Garfish',aka:'gar',reg:'sc',hab:['bay','estuary'],peak:mm(5,9),on:ALL,tide:['rising','high'],light:['day'],bait:'Tiny pieces of prawn or dough under a pencil float',tip:'Berley with bread to bring them in. Size 10 to 12 hook.',limit:'No size limit. Combined limit 50.',v:1},
+{id:'barra',name:'Barramundi',aka:'barra',reg:'cn',hab:['estuary','rocks','bay'],peak:[2,3,4,5,10],on:ALL,tide:['rising','falling','low'],light:['dawn','dusk','night'],bait:'Live mullet or prawns, hard-body lures, soft vibes',tip:'Snags, creek mouths and rock bars on the first of the run-in or last of the run-out.',limit:'Min 58 cm, max 120 cm. Limit 5.',v:1,closed:(p,lon)=>{const gulf=lon<142.6;if(p.m===11||p.m===12||p.m===1||(gulf&&p.m===10&&p.d>=7))return'Closed season: '+(gulf?'7 October':'1 November')+' to 31 January. You cannot target them, even for release.';return null}},
+{id:'jack',name:'Mangrove jack',aka:'jacks',reg:'scn',hab:['estuary','rocks'],peak:mm(10,3),on:mm(9,5),tide:['rising','high','falling'],light:['dusk','night','dawn'],bait:'Live herring or mullet, mullet fillet, paddle-tail plastics',tip:'Tight to rock walls, pylons and snags in warm, humid weather.',limit:'Check the Qld rules for current limits.',v:0},
+{id:'queenfish',name:'Queenfish',aka:'queenies',reg:'cn',hab:['surf','rocks','estuary','bay'],peak:mm(4,10),on:ALL,tide:['rising','high'],light:['dawn','dusk','day'],bait:'Poppers, metal slugs, live herring',tip:'Current lines at creek mouths and headlands on the making tide.',limit:'Check the Qld rules for current limits.',v:0},
+{id:'grunter',name:'Grunter',aka:'barred javelin',reg:'cn',hab:['estuary','bay'],peak:mm(4,10),on:ALL,tide:['rising','high'],light:['night','dusk','dawn'],bait:'Fresh prawns, yabbies, squid, herring strips',tip:'Gravel and rubble patches in channels on the bigger tides.',limit:'Check the Qld rules for current limits.',v:0},
+{id:'threadfin',name:'Threadfin salmon',aka:'king and blue salmon',reg:'scn',hab:['estuary','bay'],peak:mm(3,10),on:ALL,tide:['falling','low','rising'],light:['dawn','dusk','day'],bait:'Live prawns and herring, soft vibes',tip:'Dirty water lines and drains on the last of the run-out.',limit:'King and blue threadfin have separate limits. Check the Qld rules.',v:0},
+{id:'mudcrab',name:'Mud crab',aka:'muddies',reg:'scn',hab:['estuary'],peak:mm(10,4),on:ALL,tide:['rising','high'],light:['night','day'],bait:'Fish frames or chicken frames in pots',tip:'Set pots in mangrove-lined creeks on the bigger tides, after rain.',limit:'Min 15 cm. Limit 7. Females are no-take.',v:1}
+];
+function fishFor(spot,ms){const r=region(spot.lat),p=parts(ms),t=spot.type==='jetty'?'bay':spot.type;
+  return FISH.filter(f=>f.reg.includes(r)&&f.hab.includes(t)&&f.on.includes(p.m)).map(f=>({f,peak:f.peak.includes(p.m),closed:f.closed?f.closed(p,spot.lon):null}))}
+if(typeof module!=='undefined')module.exports={parts,midnight,fmtTime,dayAstro,moonPhase,phaseName,tideExtremes,tideState,hourScore,bestWindow,fishFor,at,HR,DAY,FISH,grade};
+</script>
+
+<script>
+/* ---------- App: storage, data fetch, views ---------- */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const KEY='runin.v1';
+const DEADMANS={id:'deadmans',name:"Deadman's Beach",area:'Point Lookout, North Stradbroke Island',lat:-27.4247,lon:153.5385,type:'surf',faces:0,
+  keywords:'Stradbroke OR Straddie OR "Point Lookout"',
+  local:[
+   ['North-facing beach about 600 m long, between Cylinder Headland and Dune Rocks. More sheltered than the island\'s ocean beaches, so south-easterly wind blows offshore here.','Beachsafe / Weekend Notes','https://beachsafe.org.au/beach/qld/redland/point-lookout/deadmans-beach'],
+   ['A forum regular fishes the stretch from Deadman\'s to Frenchman\'s and rates Deadman\'s for whiting up to the sandhills. Beach worms are the bait. Lower tides fish best.','Australian Fishing Online forum','https://www.australianfishing.com.au/forum/topic/50389-north-stradbroke-island/'],
+   ['The Point Lookout bait shop\'s weekly line for the island\'s beaches keeps naming dart, whiting, bream, flathead and tailor. Fish the gutters.','Coastwatch weekly reports','https://coastwatch.com.au/category/fishing-report/'],
+   ['Mulloway come from the surf beside rocky outcrops; live mullet is the suggested bait. Tailor of 40 to 50 cm were reported on Main Beach at dusk and early morning in the cool months.','Redland Bayside News','https://redlandbaysidenews.com.au/cool-weather-brings-out-the-fish'],
+   ['Commercial netting is closed within 200 m of shore from North Gorge to Adder Rock, 20 September to 1 April. Line fishing is not affected.','Qld Fisheries closed waters FCW 284','https://daf.qld.gov.au/__data/assets/pdf_file/0003/87213/North-Stradbroke-Island-northern-beaches-FCW-284.pdf'],
+   ['Nearest bait: Point Lookout Bait & Fresh Fish, (07) 3409 8724 (number as listed in Coastwatch reports).','Coastwatch','https://coastwatch.com.au/category/fishing-report/']
+  ]};
+const SEED_REPORTS=[
+ {date:'2025-12-10',approx:true,source:'Australian Fishing Online forum',area:'Point Lookout',url:'https://www.australianfishing.com.au/forum/topic/50389-north-stradbroke-island/',summary:'Thread on a week at Point Lookout. Whiting along Deadman\'s on worms, best on lower tides. Amity fishes well at night on yabbies.'},
+ {date:'2025-09-04',source:'Redland Bayside News',area:'Main Beach, North Stradbroke',url:'https://redlandbaysidenews.com.au/redland-bay-fishing-2/',summary:'Club beach trip with 60-plus anglers. Winning bag was tailor, bream and tarwhine.'},
+ {date:'2024-03-21',source:'Coastwatch (Point Lookout Bait & Fresh Fish)',area:'North Stradbroke beaches',url:'https://coastwatch.com.au/?p=5193',summary:'Wind and swell made the beaches hard to fish. Bream, whiting, flathead and tailor expected as seas settle.'},
+ {date:'2023-09-07',source:'Coastwatch (Point Lookout Bait & Fresh Fish)',area:'North Stradbroke beaches',url:'https://coastwatch.com.au/articles/23-09-07',summary:'All beaches producing dart, whiting, tailor and flathead.'}
+];
+const TYPES={surf:'Surf beach',rocks:'Rocks or headland',estuary:'Estuary or river',bay:'Bay, flats or sheltered beach',jetty:'Jetty or wharf'};
+const GENERIC={surf:'Walk the beach at low tide and mark the gutters: darker, deeper water running along the shore with a bank outside it. Fish them as the tide fills.',rocks:'Check the swell before the fish. If waves wash the ledge, do not go down. Fish the wash, not the calm water.',estuary:'Fish follow the water. Banks and flats on the run-in, drains and channel edges on the run-out.',bay:'Sheltered water fishes best with some run in the tide. Yabby banks and weed edges hold whiting and bream.',jetty:'Fish hold in the shade and around pylons. Dawn, dusk and after dark with lights on are the times.'};
+let S={spots:[DEADMANS],active:'deadmans',log:[],notes:[],reports:[],cache:{}};
+try{const raw=localStorage.getItem(KEY);if(raw){const o=JSON.parse(raw);S=Object.assign(S,o);if(!S.spots.length)S.spots=[DEADMANS]}}catch(e){}
+let storageOK=true;function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){storageOK=false}}
+let tab='today',dayIdx=0,data=null,loadErr=null,loading=false,reddit=null,demo=location.hash==='#demo';
+const spot=()=>S.spots.find(s=>s.id===S.active)||S.spots[0];
+
+/* --- Data --- */
+const toMs=a=>a.map(s=>Date.parse(s+':00+10:00'));
+async function getJSON(u){const r=await fetch(u);if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}
+function demoData(){const t0=midnight(Date.now())-DAY,t=[],sea=[],wave=[],wind=[],wdir=[],pres=[],rain=[],temp=[],sst=[],gust=[],per=[],wavedir=[];
+  for(let i=0;i<9*24;i++){const x=t0+i*HR,h=i;t.push(x);sea.push(0.75*Math.sin(2*Math.PI*h/12.42)+0.2*Math.sin(2*Math.PI*h/24.8+1));wave.push(1+0.4*Math.sin(h/30));
+   wind.push(9+6*Math.sin(h/9));gust.push(14+7*Math.sin(h/9));wdir.push(140+30*Math.sin(h/20));pres.push(1014+3*Math.sin(h/40));rain.push(0);temp.push(24+4*Math.sin((h-9)/24*2*Math.PI));sst.push(24.1);per.push(8);wavedir.push(120)}
+  return{fetched:Date.now(),wx:{t,wind,gust,wdir,pres,rain,temp},mar:{t,sea,wave,per,wavedir,sst}}}
+async function load(force){const sp=spot();loadErr=null;
+  if(demo){S.cache[sp.id]=demoData()}
+  else{const c=S.cache[sp.id];if(force||!c||Date.now()-c.fetched>60*60000){loading=true;render();
+    const q=`latitude=${sp.lat}&longitude=${sp.lon}&timezone=Australia%2FBrisbane&past_days=1&forecast_days=7`;
+    const [wx,mar]=await Promise.allSettled([
+      getJSON(`https://api.open-meteo.com/v1/forecast?${q}&wind_speed_unit=kn&hourly=temperature_2m,precipitation,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m`),
+      getJSON(`https://marine-api.open-meteo.com/v1/marine?${q}&hourly=sea_level_height_msl,wave_height,wave_direction,wave_period,sea_surface_temperature`)]);
+    loading=false;
+    if(wx.status==='fulfilled'){const h=wx.value.hourly,n={fetched:Date.now(),wx:{t:toMs(h.time),wind:h.wind_speed_10m,gust:h.wind_gusts_10m,wdir:h.wind_direction_10m,pres:h.pressure_msl,rain:h.precipitation,temp:h.temperature_2m},mar:null};
+      if(mar.status==='fulfilled'&&mar.value.hourly){const m=mar.value.hourly;n.mar={t:toMs(m.time),sea:m.sea_level_height_msl,wave:m.wave_height,per:m.wave_period,wavedir:m.wave_direction,sst:m.sea_surface_temperature};if(!n.mar.sea||n.mar.sea.every(v=>v==null))n.mar.sea=null}
+      S.cache={[sp.id]:n};save()}
+    else{const why=String(wx.reason&&wx.reason.message||wx.reason);loadErr=/^HTTP/.test(why)?'The forecast service answered with an error ('+why+'). Tell Claude this code.':'This page is being blocked from the internet ('+why+'; opened as '+location.protocol+'). That happens in file previews, including inside the Claude app. It needs to be opened from a web address in Safari or Chrome.'}}}
+  build();render()}
+function build(){const sp=spot(),c=S.cache[sp.id];data=null;if(!c)return;const m=c.mar||{},w=c.wx,memo={};
+  const ext=m.sea?tideExtremes(m.t,m.sea):[];let maxRate=0;if(m.sea)for(let i=1;i<m.sea.length;i++)if(m.sea[i]!=null&&m.sea[i-1]!=null)maxRate=Math.max(maxRate,Math.abs(m.sea[i]-m.sea[i-1]));
+  const ctx={lat:sp.lat,lon:sp.lon,type:sp.type,faces:sp.faces,mt:m.t,sea:m.sea,wave:m.wave,wt:w.t,wind:w.wind,wdir:w.wdir,pres:w.pres,rain:w.rain,ext,maxRate,
+    astro:ms=>{const d=midnight(ms);return memo[d]||(memo[d]=dayAstro(d,sp.lat,sp.lon))}};
+  data={c,ctx,ext,fetched:c.fetched}}
+function dayHours(d0,sp){const out=[];for(let i=0;i<24;i++){const t=d0+i*HR;if(at(data.ctx.wt,data.ctx.wind,t)==null)continue;const r=hourScore(t,data.ctx,sp);out.push({t,...r})}return out}
+function condAt(ms){if(!data)return null;const c=data.ctx,ts=c.ext.length?tideState(ms,c.ext):null,w=at(c.wt,c.wind,ms);if(w==null)return null;const a=c.astro(ms);
+  return{tide:ts?ts.state:null,sea:at(c.mt,c.sea,ms),wind:Math.round(w),wdir:Math.round(at(c.wt,c.wdir,ms)),wave:at(c.mt,c.wave,ms),pres:Math.round(at(c.wt,c.pres,ms)),phase:+a.phase.toFixed(3),light:lightState(ms,a),score:hourScore(ms,c).score}}
+
+/* --- Views --- */
+function render(){const sp=spot();$('#spotname').textContent=sp.name;$('#spotsub').textContent=(sp.area?sp.area+' · ':'')+TYPES[sp.type]+' · tap to change';
+  $('#banner').innerHTML=demo?'<div class="banner">Demo data. Not a forecast.</div>':'';
+  $('#tabs').innerHTML=[['today','Today'],['fish','Fish'],['reports','Reports'],['log','Log'],['spots','Spots']].map(([k,l])=>`<button data-tab="${k}" class="${tab===k?'sel':''}">${l}</button>`).join('');
+  $('#view').innerHTML=({today:vToday,fish:vFish,reports:vReports,log:vLog,spots:vSpots})[tab]()+(storageOK?'':'<p class="warn">This browser is not saving data. Your log will be lost when you close the page. Export it first.</p>')}
+function needData(){if(loading)return'<div class="card">Loading tides and weather…</div>';if(loadErr&&!data)return`<div class="card"><p class="warn">${esc(loadErr)}</p><p class="note">Sun, moon and species information still work without a connection. Tides and weather need one.</p></div>`;if(!data)return'<div class="card">No data yet. Tap Refresh.</div>';return''}
+function dayPicker(){const d0=midnight(Date.now());let h='<div class="days">';for(let i=0;i<7;i++){const d=d0+i*DAY,hrs=data?dayHours(d):[],b=hrs.length?bestWindow(hrs):null;
+  h+=`<button data-day="${i}" class="${i===dayIdx?'sel':''}">${i===0?'Today':DOW[parts(d).dow]}<small>${b?'best '+b.avg:parts(d).d+' '+MON[parts(d).m-1]}</small></button>`}return h+'</div>'}
+function chart(d0,hrs){const W=360,H=178,L=6,R=354,T=14,B=118,c=data.ctx,x=t=>L+(t-d0)/DAY*(R-L);let s='';
+  const a=c.astro(d0+HR);if(a.sunrise)s+=`<rect x="${L}" y="${T}" width="${x(a.sunrise)-L}" height="${B-T}" fill="var(--night)"/>`;if(a.sunset)s+=`<rect x="${x(a.sunset)}" y="${T}" width="${R-x(a.sunset)}" height="${B-T}" fill="var(--night)"/>`;
+  if(c.sea){const vals=c.sea.filter(v=>v!=null),lo=Math.min(...vals),hi=Math.max(...vals),y=v=>B-8-(v-lo)/(hi-lo||1)*(B-T-26);let p='';
+    for(let m=0;m<=24*4;m++){const t=d0+m*HR/4,v=at(c.mt,c.sea,t);if(v==null)continue;p+=(p?'L':'M')+x(t).toFixed(1)+' '+y(v).toFixed(1)}
+    if(p){s+=`<path d="${p}L${R} ${B}L${L} ${B}Z" fill="var(--water)" opacity=".55"/><path d="${p}" fill="none" stroke="var(--accent)" stroke-width="2"/>`}
+    for(const e of data.ext)if(e.t>=d0&&e.t<d0+DAY){const ex=Math.max(L+26,Math.min(R-26,x(e.t)));s+=`<circle cx="${x(e.t)}" cy="${y(e.h)}" r="3.5" fill="var(--accent)"/><text x="${ex}" y="${e.type==='high'?y(e.h)-7:y(e.h)+15}" text-anchor="middle" font-size="10.5" fill="var(--ink)">${fmtTime(e.t).replace(' ','')}</text>`}}
+  else s+=`<text x="180" y="70" text-anchor="middle" font-size="12" fill="var(--muted)">No tide data for this location</text>`;
+  for(const h of hrs){s+=`<rect x="${x(h.t)+.5}" y="${B+6}" width="${(R-L)/24-1}" height="20" rx="2" fill="var(--${grade(h.score)[1]})"/>`}
+  [['12am',0],['6am',6],['12pm',12],['6pm',18]].forEach(([l,hh])=>{s+=`<text x="${x(d0+hh*HR)+2}" y="${H-12}" font-size="10" fill="var(--muted)">${l}</text>`});
+  const now=Date.now();if(now>=d0&&now<d0+DAY)s+=`<line x1="${x(now)}" x2="${x(now)}" y1="${T-6}" y2="${B+26}" stroke="var(--bad)" stroke-width="1.5"/><text x="${Math.min(R-12,x(now)+3)}" y="${T-3}" font-size="9.5" fill="var(--bad)">now</text>`;
+  return`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Tide curve and hourly bite score for the day">${s}</svg>
+  <div class="note"><span class="dot" style="background:var(--prime)"></span>Prime 70+ <span class="dot" style="background:var(--good);margin-left:8px"></span>Good 55+ <span class="dot" style="background:var(--fair);margin-left:8px"></span>Fair 40+ <span class="dot" style="background:var(--poor);margin-left:8px"></span>Poor · shaded = dark</div>`}
+function vToday(){const nd=needData();if(nd)return nd;const sp=spot(),c=data.ctx,d0=midnight(Date.now())+dayIdx*DAY,hrs=dayHours(d0),a=c.astro(d0+HR),now=Date.now();
+  let h=dayPicker();
+  if(!hrs.length)return h+'<div class="card">No forecast for this day yet.</div>';
+  const best=bestWindow(hrs),ref=dayIdx===0?hourScore(now,c):hourScore(best.start+HR,c),g=grade(dayIdx===0?ref.score:best.avg);
+  const chips=ref.parts.slice().sort((x,y)=>Math.abs(y.d)-Math.abs(x.d)).slice(0,5).map(p=>`<span class="chip ${p.d>0?'up':'down'}">${esc(p.l)} ${p.d>0?'+':''}${p.d}</span>`).join('');
+  h+=`<div class="card"><div class="verdict"><div class="score s-${g[1]}">${dayIdx===0?ref.score:best.avg}</div><div><h3>${dayIdx===0?g[0]+' right now':g[0]+' at best'}</h3>
+   <div>Best window ${dayIdx===0?'today':fmtDate(d0)}: <b>${fmtTime(best.start)} to ${fmtTime(best.end)}</b> (${best.avg})</div></div></div><div class="chips">${chips}</div></div>`;
+  const wv=at(c.mt,c.wave,dayIdx===0?now:best.start);if(wv!=null&&wv>2&&(sp.type==='rocks'||sp.type==='surf'))h+=`<p class="warn">Swell near ${wv.toFixed(1)} m. ${sp.type==='rocks'?'Stay off the rocks.':'Heavy shore break and strong sweep likely.'}</p>`;
+  h+=`<div class="card"><h2>Tide and bite score, ${fmtDate(d0)}</h2>${chart(d0,hrs)}`;
+  const ex=data.ext.filter(e=>e.t>=d0&&e.t<d0+DAY);
+  if(ex.length)h+=`<div class="grid">${ex.map(e=>`<div class="stat"><small>${e.type} tide</small><b>${fmtTime(e.t)}</b><span>${(e.h>=0?'+':'')+e.h.toFixed(2)} m from mean sea level</span></div>`).join('')}</div>
+   <p class="note">Tide times come from a global ocean model (Open-Meteo), not a tide gauge. Expect them to be out by up to half an hour or so, more inside bays and rivers. Heights are measured from mean sea level, so they read lower than a BOM table. For anything where timing is critical, check <a href="http://www.bom.gov.au/australia/tides/" target="_blank" rel="noopener">BOM tide predictions</a>.</p>`;
+  h+='</div>';
+  const t=dayIdx===0?now:best.start,w=at(c.wt,c.wind,t),wd=at(c.wt,c.wdir,t),gu=at(c.wt,data.c.wx.gust,t),p=at(c.wt,c.pres,t),p0=at(c.wt,c.pres,t-3*HR),m=data.c.mar||{};
+  const st=(l,b,s)=>`<div class="stat"><small>${l}</small><b>${b}</b><span>${s||'&nbsp;'}</span></div>`;
+  h+=`<div class="card"><h2>Conditions ${dayIdx===0?'now':'at '+fmtTime(t)}</h2><div class="grid">
+   ${st('Wind',Math.round(w)+' kn '+compass(wd),'gusts '+Math.round(gu)+' kn'+(sp.faces!=null?(angDiff(wd,sp.faces)<60?' · onshore':angDiff(wd,sp.faces)>120?' · offshore':' · cross-shore'):''))}
+   ${wv!=null?st('Waves',wv.toFixed(1)+' m',Math.round(at(m.t,m.per,t))+' s from '+compass(at(m.t,m.wavedir,t))):''}
+   ${at(m.t,m.sst,t)!=null?st('Water',at(m.t,m.sst,t).toFixed(1)+' °C',''):''}
+   ${st('Air',Math.round(at(c.wt,data.c.wx.temp,t))+' °C','rain '+(at(c.wt,c.rain,t)||0).toFixed(1)+' mm/h')}
+   ${st('Barometer',Math.round(p)+' hPa',p0!=null?(p-p0>0.7?'rising':p-p0<-0.7?'falling':'steady'):'')}
+   </div></div>`;
+  h+=`<div class="card"><h2>Sun and moon</h2><div class="grid">${st('Sunrise',fmtTime(a.sunrise))}${st('Sunset',fmtTime(a.sunset))}${st('Moon',Math.round(a.frac*100)+'%',phaseName(a.phase))}${st('Moonrise',fmtTime(a.moonrise))}${st('Moonset',fmtTime(a.moonset))}
+   ${st('Solunar majors',a.majors.map(fmtTime).join(', ')||'–','moon overhead / underfoot')}</div></div>`;
+  h+=`<div class="card"><details><summary>Hour by hour</summary><div class="scroll"><table><tr><th>Time</th><th>Score</th><th>Tide</th><th>Wind</th><th>Waves</th></tr>${hrs.map(x=>{const ts=c.ext.length?tideState(x.t,c.ext):null,se=at(c.mt,c.sea,x.t),ww=at(c.mt,c.wave,x.t);
+    return`<tr><td>${fmtTime(x.t)}</td><td><span class="dot" style="background:var(--${grade(x.score)[1]})"></span>${x.score}</td><td>${ts?ts.state:''} ${se!=null?(se>=0?'+':'')+se.toFixed(1):''}</td><td>${Math.round(at(c.wt,c.wind,x.t))} ${compass(at(c.wt,c.wdir,x.t))}</td><td>${ww!=null?ww.toFixed(1):''}</td></tr>`}).join('')}</table></div></details>
+   <details><summary>How the score works</summary><p class="note">Every hour starts at 30. Tide movement adds up to 14, a tide turn 8, first light or dusk up to 18, a solunar major 8 or minor 5, new or full moon 4, light wind 8, workable swell 6, falling barometer 4. Wind above 15 kn costs 6 to 25, onshore wind 6, big swell 5 to 18, heavy rain 6, high sun 4. These weights are common fishing rules of thumb, not measured results. Your own log is the test: after 20 or so sessions the stats on the Log tab will show whether the score tracks what you catch here.</p></details>
+   <p class="note">Updated ${fmtTime(data.fetched)} ${fmtDate(data.fetched)}${loadErr?' · offline, showing saved data':''}. Weather and marine data by <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>.</p></div>`;
+  return h}
+function vFish(){const sp=spot(),d0=midnight(Date.now())+dayIdx*DAY,list=fishFor(sp,d0+12*HR);let h=data?dayPicker():'';
+  const rows=list.map(o=>{let win=null;if(data){const hrs=dayHours(d0,o.f);if(hrs.length)win=bestWindow(hrs)}return{...o,win}}).sort((a,b)=>(b.peak-a.peak)||((b.win?b.win.avg:0)-(a.win?a.win.avg:0)));
+  h+=`<div class="card"><h2>Likely targets, ${MON[parts(d0).m-1]}</h2><p class="note">Ranked for a ${TYPES[sp.type].toLowerCase()} in ${({s:'southern',c:'central',n:'northern'})[region(sp.lat)]} Queensland. Season first, then how well the day's tides and light suit each fish.</p>`;
+  if(!rows.length)h+='<p>No species on file for this kind of spot this month.</p>';
+  for(const r of rows){const f=r.f;h+=`<div class="fish ${r.peak?'peak':'on'}"><div class="hd"><h3>${esc(f.name)}${f.aka?` <span class="note">(${esc(f.aka)})</span>`:''}</h3><span class="chip ${r.peak?'up':''}">${r.peak?'Peak season':'In season'}</span></div>
+    ${r.closed?`<p class="warn">${esc(r.closed)}</p>`:''}
+    <dl>${r.win?`<dt>Best time</dt><dd><b>${fmtTime(r.win.start)} to ${fmtTime(r.win.end)}</b> (${r.win.avg})</dd>`:''}<dt>Tide</dt><dd>${f.tide.join(', ')}</dd><dt>Bait</dt><dd>${esc(f.bait)}</dd><dt>How</dt><dd>${esc(f.tip)}</dd><dt>Limits</dt><dd>${esc(f.limit)}</dd></dl></div>`}
+  h+='</div>';
+  if(sp.type==='surf')h+=`<div class="card"><h2>Bait on the beach</h2><p>Beach worms and pipis are the two baits you can gather where you stand. Worms: drag a fish frame across the wet sand on a low tide and pinch them out as they lift. Pipis: twist your feet into the wash zone. Possession limit is 30 beach worms and 30 pipis.</p></div>`;
+  h+=`<div class="card"><p class="note">Size and possession limits were read from the Queensland Government tidal waters page as updated 25 September 2026. Rules change. Check <a href="https://www.qld.gov.au/recreation/activities/boating-fishing/rec-fishing/rules/limits-tidal" target="_blank" rel="noopener">current limits</a> and <a href="https://www.daf.qld.gov.au/business-priorities/fisheries/closures/tidal/seasons" target="_blank" rel="noopener">closed seasons</a> before you keep a fish. Marine park green zones are not shown here.</p></div>`;
+  return h}
+function allReports(){const seen=new Set(),out=[];for(const r of[...S.reports,...(spot().id==='deadmans'||/stradbroke|straddie|point lookout/i.test(spot().area+spot().name)?SEED_REPORTS:[])]){const k=(r.date||'')+'|'+(r.summary||'').slice(0,60);if(seen.has(k))continue;seen.add(k);out.push(r)}
+  return out.sort((a,b)=>(b.date||'').localeCompare(a.date||''))}
+function vReports(){const sp=spot(),kw=sp.keywords||sp.name,q=encodeURIComponent,reps=allReports(),today=parts(Date.now()),iso=`${today.y}-${String(today.m).padStart(2,'0')}-${String(today.d).padStart(2,'0')}`;
+  const fresh=reps.filter(r=>r.date&&(Date.parse(iso)-Date.parse(r.date))<=8*DAY).length;
+  let h=`<div class="card"><h2>Recent reports</h2><p class="note">${fresh?fresh+' from the past week.':'Nothing on file from the past week.'} Reports arrive from the daily brief (paste it in below) or from a reports.json file beside this page if you host it.</p>
+   ${reps.length?reps.map(r=>`<div class="item"><div>${esc(r.summary)}</div><div class="meta">${r.approx?'about ':''}${esc(r.date||'undated')} · ${esc(r.area||'')} · ${r.url&&/^https?:\/\//.test(r.url)?`<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.source||'source')}</a>`:esc(r.source||'')}</div></div>`).join(''):'<p>No reports saved for this area yet.</p>'}</div>`;
+  h+=`<div class="card"><h2>Look for today's chatter</h2><p class="note">Facebook groups need you to be logged in, so no app can read them for you. These open the right search in one tap.</p><div class="links">
+   <a href="https://www.facebook.com/search/posts/?q=${q(sp.name+' fishing')}" target="_blank" rel="noopener">Facebook posts</a>
+   <a href="https://www.facebook.com/search/groups/?q=${q((sp.area||sp.name).split(',').pop().trim()+' fishing')}" target="_blank" rel="noopener">Facebook groups</a>
+   <a href="https://www.reddit.com/search/?q=${q('('+kw+') fishing')}&sort=new" target="_blank" rel="noopener">Reddit</a>
+   <a href="https://www.google.com/search?q=${q('('+kw+') fishing report')}&tbs=qdr:w" target="_blank" rel="noopener">Web, past week</a>
+   <a href="https://coastwatch.com.au/category/fishing-report/" target="_blank" rel="noopener">Coastwatch weekly</a>
+   <a href="https://www.australianfishing.com.au/forum/" target="_blank" rel="noopener">Australian Fishing Online forum</a></div>
+   <div><button class="btn ghost small" id="reddit">Check Reddit here</button></div>
+   ${reddit===null?'':reddit==='loading'?'<p class="note">Asking Reddit…</p>':reddit==='fail'?'<p class="note">Reddit refused the request from this browser. Use the Reddit link above.</p>':reddit.length?reddit.map(p=>`<div class="item"><a href="https://www.reddit.com${esc(p.permalink)}" target="_blank" rel="noopener">${esc(p.title)}</a><div class="meta">r/${esc(p.subreddit)} · ${fmtDate(p.created_utc*1000)} · ${p.num_comments} comments</div></div>`).join(''):'<p class="note">No Reddit posts in the past month for this search.</p>'}</div>`;
+  h+=`<div class="card"><h2>Standing local knowledge</h2>${(sp.local||[]).map(l=>`<div class="item"><div>${esc(l[0])}</div><div class="meta"><a href="${esc(l[2])}" target="_blank" rel="noopener">${esc(l[1])}</a></div></div>`).join('')}<div class="item"><div>${esc(GENERIC[sp.type])}</div><div class="meta">General rule for this kind of spot</div></div></div>`;
+  const notes=S.notes.filter(n=>n.spot===sp.id).sort((a,b)=>b.ts-a.ts);
+  h+=`<div class="card"><h2>Add what you hear</h2><form id="noteform"><label for="notetext">Paste the daily brief, or type a tip from the bait shop, a mate or a Facebook post</label><textarea id="notetext" rows="3" required></textarea><button class="btn">Save</button></form>
+   ${notes.map(n=>`<div class="item"><div>${esc(n.text)}</div><div class="meta">${fmtDate(n.ts)} <button class="btn danger small" data-delnote="${n.ts}">Delete</button></div></div>`).join('')}</div>`;
+  return h}
+function vLog(){const sp=spot(),p=parts(Date.now()),dt=`${p.y}-${String(p.m).padStart(2,'0')}-${String(p.d).padStart(2,'0')}T${String(p.h).padStart(2,'0')}:${String(p.mi).padStart(2,'0')}`;
+  let h=`<div class="card"><h2>Log a catch at ${esc(sp.name)}</h2><form id="logform">
+   <div class="row"><label for="l-when">When<input id="l-when" type="datetime-local" value="${dt}" required></label>
+   <label for="l-species">Species<select id="l-species"><option value="">No fish (blank session)</option>${FISH.map(f=>`<option>${esc(f.name)}</option>`).join('')}<option>Other</option></select></label></div>
+   <div class="row"><label for="l-len">Length (cm)<input id="l-len" type="number" inputmode="decimal" min="1" max="250" step="0.5"></label>
+   <label for="l-n">How many<input id="l-n" type="number" inputmode="numeric" min="1" max="99" value="1"></label></div>
+   <div class="row"><label for="l-bait">Bait or lure<input id="l-bait" list="baits" autocomplete="off"></label><datalist id="baits">${['Beach worms','Pipis','Yabbies','Pilchards','Prawns','Mullet gut','Squid','Soft plastic','Metal slug','Live bait'].map(b=>`<option value="${b}">`).join('')}</datalist>
+   <label for="l-notes">Notes<input id="l-notes" placeholder="Gutter, rig, who was with you"></label></div>
+   <label class="check" for="l-kept"><input id="l-kept" type="checkbox"> Kept</label>
+   <div id="l-warn"></div><button class="btn">Save entry</button>
+   <p class="note">Tide, wind, swell, moon and bite score at that time are saved with the entry when forecast data covers it. Log the blank sessions too. Without them the stats cannot tell a good tide from a tide you happened to fish more.</p></form></div>`;
+  const log=S.log.slice().sort((a,b)=>b.ts-a.ts);
+  h+=stats(log);
+  h+=`<div class="card"><h2>Entries (${log.length})</h2>${log.length?log.slice(0,60).map(e=>`<div class="item"><div><b>${e.species?esc((e.n>1?e.n+' × ':'')+e.species)+(e.len?' · '+e.len+' cm':'')+(e.kept?' · kept':' · released'):'Blank session'}</b>${e.bait?' on '+esc(e.bait):''}</div>
+    <div class="meta">${fmtTime(e.ts)} ${fmtDate(e.ts)} ${parts(e.ts).y} · ${esc(e.spotName)}${e.cond?` · ${e.cond.tide||''} tide · ${e.cond.wind} kn ${compass(e.cond.wdir)} · ${phaseName(e.cond.phase).toLowerCase()} · score ${e.cond.score}`:''}${e.notes?' · '+esc(e.notes):''} <button class="btn danger small" data-dellog="${e.id}">Delete</button></div></div>`).join(''):'<p>Nothing logged yet.</p>'}
+   <div class="row"><button class="btn ghost small" id="exp">Export backup</button><button class="btn ghost small" id="csv">Copy as CSV</button><label class="btn ghost small" for="imp" style="color:var(--accent);text-align:center">Import backup<input id="imp" type="file" accept="application/json,.json" hidden></label></div>
+   <p class="note">The log lives in this browser on this device. Export a backup now and then.</p></div>`;
+  return h}
+function stats(log){if(!log.length)return'';const fish=log.filter(e=>e.species),tot=fish.reduce((s,e)=>s+(e.n||1),0),sessions=new Set(log.map(e=>e.spotId+midnight(e.ts)+Math.floor(parts(e.ts).h/6))).size,blanks=log.filter(e=>!e.species).length;
+  const tally=(fn,src=fish)=>{const m={};for(const e of src){const k=fn(e);if(k)m[k]=(m[k]||0)+(e.n||1)}return Object.entries(m).sort((a,b)=>b[1]-a[1])};
+  const bars=(title,rows)=>{if(!rows.length)return'';const mx=rows[0][1];return`<h3>${title}</h3>${rows.slice(0,8).map(([k,v])=>`<div class="bar"><span>${esc(k)}</span><i style="width:${Math.max(4,v/mx*100)}%"></i><span>${v}</span></div>`).join('')}`};
+  const big=fish.filter(e=>e.len).sort((a,b)=>b.len-a.len)[0],withC=fish.filter(e=>e.cond);
+  const moonB=e=>{const p=e.cond.phase;return p<0.125||p>=0.875?'New moon':p<0.375?'First quarter':p<0.625?'Full moon':'Last quarter'};
+  const band=e=>e.cond.score>=70?'Score 70+':e.cond.score>=55?'Score 55 to 69':e.cond.score>=40?'Score 40 to 54':'Score under 40';
+  return`<div class="card"><h2>Your stats</h2><div class="grid"><div class="stat"><small>Fish</small><b>${tot}</b><span>${fish.filter(e=>e.kept).reduce((s,e)=>s+(e.n||1),0)} kept</span></div><div class="stat"><small>Sessions</small><b>${sessions}</b><span>${blanks} blank entries</span></div>
+   ${big?`<div class="stat"><small>Biggest</small><b>${big.len} cm</b><span>${esc(big.species)}</span></div>`:''}</div>
+   ${tot<10?'<p class="note">Fewer than 10 fish logged. Treat every pattern below as a hint, not a finding.</p>':''}
+   ${bars('By species',tally(e=>e.species))}${bars('By tide',tally(e=>e.cond.tide,withC))}${bars('By light',tally(e=>e.cond.light,withC))}${bars('By moon',tally(moonB,withC))}${bars('By bait',tally(e=>e.bait))}${bars('By bite score when caught',tally(band,withC))}</div>`}
+let found=null;
+function vSpots(){const dirs=['N','NE','E','SE','S','SW','W','NW'];
+  let h=`<div class="card"><h2>Your spots</h2>${S.spots.map(s=>`<div class="item"><div><b>${esc(s.name)}</b> ${s.id===S.active?'<span class="chip sel">showing</span>':''}</div><div class="meta">${esc(s.area||'')} · ${TYPES[s.type]} · ${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}${s.faces!=null?' · faces '+compass(s.faces):''}</div>
+    <div class="row">${s.id!==S.active?`<button class="btn small" data-use="${s.id}">Show</button>`:''}${S.spots.length>1?`<button class="btn danger small" data-delspot="${s.id}">Remove</button>`:''}</div></div>`).join('')}</div>`;
+  h+=`<div class="card"><h2>Add a Queensland spot</h2><form id="searchform"><label for="q">Beach, town, river or headland<input id="q" placeholder="e.g. Teewah Beach, Inskip Point, Woorim" required></label><button class="btn">Search</button></form>
+   ${found==='loading'?'<p class="note">Searching…</p>':found==='fail'?'<p class="warn">Search failed. Check your connection, or enter coordinates below.</p>':Array.isArray(found)?(found.length?found.map((r,i)=>`<div class="item"><div><b>${esc(r.name)}</b></div><div class="meta">${esc([r.admin2,r.admin1].filter(Boolean).join(', '))} · ${r.latitude.toFixed(3)}, ${r.longitude.toFixed(3)}</div><div><button class="btn small" data-pick="${i}">Use this</button></div></div>`).join(''):'<p class="note">No Queensland match. Small beaches are often missing from the place database. Search the nearest town, or enter coordinates below (press and hold the spot in a maps app to get them).</p>'):''}
+   <form id="addform"><div class="row"><label for="a-name">Name<input id="a-name" required></label><label for="a-area">Area<input id="a-area"></label></div>
+   <div class="row"><label for="a-lat">Latitude<input id="a-lat" type="number" step="any" min="-29.5" max="-9" required></label><label for="a-lon">Longitude<input id="a-lon" type="number" step="any" min="137.9" max="154" required></label></div>
+   <div class="row"><label for="a-type">Kind of spot<select id="a-type">${Object.entries(TYPES).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></label>
+   <label for="a-faces">Faces (looking out to sea)<select id="a-faces"><option value="">Not sure</option>${dirs.map((d,i)=>`<option value="${i*45}">${d}</option>`).join('')}</select></label></div>
+   <label for="a-kw">Search words for reports<input id="a-kw" placeholder='e.g. Bribie OR Woorim'></label>
+   <div class="row"><button class="btn">Save spot</button><button type="button" class="btn ghost" id="here">Use my location</button></div>
+   <p class="note">Tides and weather are for tidal waters anywhere on the Queensland coast. Setting which way the beach faces lets the score tell onshore from offshore wind.</p></form></div>`;
+  return h}
+
+/* --- Events --- */
+document.addEventListener('click',async e=>{const b=e.target.closest('button,[data-tab]');if(!b)return;const d=b.dataset;
+  if(d.tab){tab=d.tab;render();scrollTo(0,0)}
+  else if(b.id==='spotbtn'||b.closest('#spotbtn')){tab='spots';render();scrollTo(0,0)}
+  else if(b.id==='refresh'){load(true)}
+  else if(d.day!=null){dayIdx=+d.day;render()}
+  else if(d.use){S.active=d.use;save();dayIdx=0;tab='today';reddit=null;load(false)}
+  else if(d.delspot){S.spots=S.spots.filter(s=>s.id!==d.delspot);if(S.active===d.delspot)S.active=S.spots[0].id;save();load(false)}
+  else if(d.pick!=null){const r=found[+d.pick];$('#a-name').value=r.name;$('#a-area').value=[r.admin2,'Queensland'].filter(Boolean).join(', ');$('#a-lat').value=r.latitude;$('#a-lon').value=r.longitude;$('#a-kw').value=r.name;$('#a-name').focus()}
+  else if(b.id==='here'){if(!navigator.geolocation)return;navigator.geolocation.getCurrentPosition(p=>{$('#a-lat').value=p.coords.latitude.toFixed(4);$('#a-lon').value=p.coords.longitude.toFixed(4)},()=>{b.textContent='Location not available'})}
+  else if(d.dellog){S.log=S.log.filter(x=>x.id!==d.dellog);save();render()}
+  else if(d.delnote){S.notes=S.notes.filter(x=>String(x.ts)!==d.delnote);save();render()}
+  else if(b.id==='reddit'){reddit='loading';render();try{const j=await getJSON('https://www.reddit.com/search.json?raw_json=1&sort=new&t=month&limit=12&q='+encodeURIComponent('('+(spot().keywords||spot().name)+') fishing'));reddit=j.data.children.map(c=>c.data)}catch(x){reddit='fail'}render()}
+  else if(b.id==='exp'){const blob=new Blob([JSON.stringify({exported:new Date().toISOString(),spots:S.spots,log:S.log,notes:S.notes,reports:S.reports},null,1)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='run-in-backup.json';a.click()}
+  else if(b.id==='csv'){const rows=[['when','spot','species','count','length_cm','kept','bait','tide','wind_kn','wind_dir','wave_m','moon','score','notes'],...S.log.map(x=>[new Date(x.ts+TZ).toISOString().slice(0,16),x.spotName,x.species,x.n,x.len,x.kept?'y':'n',x.bait,x.cond?.tide,x.cond?.wind,x.cond?.wdir,x.cond?.wave?.toFixed?.(1),x.cond?phaseName(x.cond.phase):'',x.cond?.score,x.notes])];
+    const csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\n');try{await navigator.clipboard.writeText(csv);b.textContent='Copied'}catch(x){b.textContent='Copy blocked'}}
+});
+document.addEventListener('submit',async e=>{e.preventDefault();const f=e.target;
+  if(f.id==='logform'){const ts=Date.parse($('#l-when').value+':00+10:00'),sp=spot(),species=$('#l-species').value,len=parseFloat($('#l-len').value)||null;
+    S.log.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),ts,spotId:sp.id,spotName:sp.name,species,n:species?(parseInt($('#l-n').value)||1):0,len:species?len:null,kept:species?$('#l-kept').checked:false,bait:$('#l-bait').value.trim(),notes:$('#l-notes').value.trim(),cond:condAt(ts)});save();render()}
+  else if(f.id==='noteform'){const txt=$('#notetext').value.trim();let added=0;
+    try{const m=txt.match(/\[[\s\S]*\]/);if(m){const arr=JSON.parse(m[0]);if(Array.isArray(arr))for(const r of arr)if(r&&r.summary){S.reports.push({date:String(r.date||''),source:String(r.source||''),area:String(r.area||''),url:String(r.url||''),summary:String(r.summary)});added++}}}catch(x){}
+    if(!added)S.notes.push({spot:spot().id,ts:Date.now(),text:txt});save();render()}
+  else if(f.id==='searchform'){const q=$('#q').value.trim();found='loading';render();try{const j=await getJSON('https://geocoding-api.open-meteo.com/v1/search?count=20&language=en&format=json&countryCode=AU&name='+encodeURIComponent(q));found=(j.results||[]).filter(r=>r.admin1==='Queensland')}catch(x){found='fail'}render();const i=$('#q');if(i)i.value=q}
+  else if(f.id==='addform'){const lat=parseFloat($('#a-lat').value),lon=parseFloat($('#a-lon').value),fa=$('#a-faces').value,id='s'+Date.now().toString(36);
+    S.spots.push({id,name:$('#a-name').value.trim(),area:$('#a-area').value.trim(),lat,lon,type:$('#a-type').value,faces:fa===''?null:+fa,keywords:$('#a-kw').value.trim()||$('#a-name').value.trim(),local:[]});S.active=id;found=null;save();tab='today';dayIdx=0;reddit=null;load(true)}
+});
+document.addEventListener('change',e=>{
+  if(e.target.id==='imp'&&e.target.files[0]){const r=new FileReader();r.onload=()=>{try{const o=JSON.parse(r.result);const ids=new Set(S.log.map(x=>x.id));for(const x of o.log||[])if(!ids.has(x.id))S.log.push(x);const sid=new Set(S.spots.map(s=>s.id));for(const s of o.spots||[])if(!sid.has(s.id))S.spots.push(s);for(const n of o.notes||[])if(!S.notes.some(y=>y.ts===n.ts))S.notes.push(n);for(const n of o.reports||[])S.reports.push(n);save();render()}catch(x){}};r.readAsText(e.target.files[0])}
+  if(['l-species','l-len','l-kept'].includes(e.target.id)){const f=FISH.find(x=>x.name===$('#l-species').value),len=parseFloat($('#l-len').value),w=$('#l-warn');if(!w)return;const mn=f&&/Min (\d+)/.exec(f.limit),mx=f&&/max (\d+)/.exec(f.limit);
+    w.innerHTML=$('#l-kept').checked&&len&&((mn&&len<+mn[1])||(mx&&len>+mx[1]))?`<p class="warn">${esc(f.name)} at ${len} cm is outside the legal size. ${esc(f.limit)}</p>`:''}
+});
+// Hosted copy: pick up a reports.json sitting beside the page
+if(location.protocol.startsWith('http'))fetch('reports.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(a=>{if(Array.isArray(a)){const have=new Set(S.reports.map(r=>r.date+'|'+r.summary));for(const r of a)if(r&&r.summary&&!have.has(r.date+'|'+r.summary))S.reports.push(r);save();if(tab==='reports')render()}}).catch(()=>{});
+build();render();load(false);
+</script>
+</body>
+</html>
