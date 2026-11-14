@@ -232,7 +232,7 @@ const GENERIC={surf:'Walk the beach at low tide and mark the gutters: darker, de
 let S={spots:[DEADMANS],active:'deadmans',log:[],notes:[],reports:[],cache:{}};
 try{const raw=localStorage.getItem(KEY);if(raw){const o=JSON.parse(raw);S=Object.assign(S,o);if(!S.spots.length)S.spots=[DEADMANS]}}catch(e){}
 let storageOK=true;function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){storageOK=false}}
-let tab='today',dayIdx=0,data=null,loadErr=null,loading=false,reddit=null,demo=location.hash==='#demo';
+let loadDiag='',tab='today',dayIdx=0,data=null,loadErr=null,loading=false,reddit=null,demo=location.hash==='#demo';
 const spot=()=>S.spots.find(s=>s.id===S.active)||S.spots[0];
 
 /* --- Data --- */
@@ -242,18 +242,20 @@ function demoData(){const t0=midnight(Date.now())-DAY,t=[],sea=[],wave=[],wind=[
   for(let i=0;i<9*24;i++){const x=t0+i*HR,h=i;t.push(x);sea.push(0.75*Math.sin(2*Math.PI*h/12.42)+0.2*Math.sin(2*Math.PI*h/24.8+1));wave.push(1+0.4*Math.sin(h/30));
    wind.push(9+6*Math.sin(h/9));gust.push(14+7*Math.sin(h/9));wdir.push(140+30*Math.sin(h/20));pres.push(1014+3*Math.sin(h/40));rain.push(0);temp.push(24+4*Math.sin((h-9)/24*2*Math.PI));sst.push(24.1);per.push(8);wavedir.push(120)}
   return{fetched:Date.now(),wx:{t,wind,gust,wdir,pres,rain,temp},mar:{t,sea,wave,per,wavedir,sst}}}
-async function load(force){const sp=spot();loadErr=null;
+async function load(force){const sp=spot();loadErr=null;loadDiag='';
   if(demo){S.cache[sp.id]=demoData()}
   else{const c=S.cache[sp.id];if(force||!c||Date.now()-c.fetched>60*60000){loading=true;render();
     const q=`latitude=${sp.lat}&longitude=${sp.lon}&timezone=Australia%2FBrisbane&past_days=1&forecast_days=7`;
-    const [wx,mar]=await Promise.allSettled([
-      getJSON(`https://api.open-meteo.com/v1/forecast?${q}&wind_speed_unit=kn&hourly=temperature_2m,precipitation,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m`),
-      getJSON(`https://marine-api.open-meteo.com/v1/marine?${q}&hourly=sea_level_height_msl,wave_height,wave_direction,wave_period,sea_surface_temperature`)]);
+    const wxUrl=`https://api.open-meteo.com/v1/forecast?${q}&wind_speed_unit=kn&hourly=temperature_2m,precipitation,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m`,marUrl=`https://marine-api.open-meteo.com/v1/marine?${q}&hourly=sea_level_height_msl,wave_height,wave_direction,wave_period,sea_surface_temperature`;
+    const [wx,mar]=await Promise.allSettled([getJSON(wxUrl),getJSON(marUrl)]);
     loading=false;
     if(wx.status==='fulfilled'){const h=wx.value.hourly,n={fetched:Date.now(),wx:{t:toMs(h.time),wind:h.wind_speed_10m,gust:h.wind_gusts_10m,wdir:h.wind_direction_10m,pres:h.pressure_msl,rain:h.precipitation,temp:h.temperature_2m},mar:null};
       if(mar.status==='fulfilled'&&mar.value.hourly){const m=mar.value.hourly;n.mar={t:toMs(m.time),sea:m.sea_level_height_msl,wave:m.wave_height,per:m.wave_period,wavedir:m.wave_direction,sst:m.sea_surface_temperature};if(!n.mar.sea||n.mar.sea.every(v=>v==null))n.mar.sea=null}
       S.cache={[sp.id]:n};save()}
-    else{const why=String(wx.reason&&wx.reason.message||wx.reason);loadErr=/^HTTP/.test(why)?'The forecast service answered with an error ('+why+'). Tell Claude this code.':'This page is being blocked from the internet ('+why+'; opened as '+location.protocol+'). That happens in file previews, including inside the Claude app. It needs to be opened from a web address in Safari or Chrome.'}}}
+    else{const why=String(wx.reason&&wx.reason.message||wx.reason);let probe='not run';
+      try{const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${sp.lat}&longitude=${sp.lon}&current=temperature_2m`);probe='HTTP '+r.status}catch(x){probe='failed ('+(x&&x.message)+')'}
+      loadErr='Forecast request failed. Reason: '+why+'. Simple test request: '+probe+'. Page opened as '+location.protocol+'//'+location.host+'. Marine request: '+(mar.status==='fulfilled'?'ok':String(mar.reason&&mar.reason.message))+'.';
+      loadDiag=`<p class="note">Send Claude the line above. Then tap each link and say what the new tab shows: <a href="${wxUrl}" target="_blank" rel="noopener">weather test</a> · <a href="${marUrl}" target="_blank" rel="noopener">tide test</a></p>`}}}
   build();render()}
 function build(){const sp=spot(),c=S.cache[sp.id];data=null;if(!c)return;const m=c.mar||{},w=c.wx,memo={};
   const ext=m.sea?tideExtremes(m.t,m.sea):[];let maxRate=0;if(m.sea)for(let i=1;i<m.sea.length;i++)if(m.sea[i]!=null&&m.sea[i-1]!=null)maxRate=Math.max(maxRate,Math.abs(m.sea[i]-m.sea[i-1]));
@@ -269,7 +271,7 @@ function render(){const sp=spot();$('#spotname').textContent=sp.name;$('#spotsub
   $('#banner').innerHTML=demo?'<div class="banner">Demo data. Not a forecast.</div>':'';
   $('#tabs').innerHTML=[['today','Today'],['fish','Fish'],['reports','Reports'],['log','Log'],['spots','Spots']].map(([k,l])=>`<button data-tab="${k}" class="${tab===k?'sel':''}">${l}</button>`).join('');
   $('#view').innerHTML=({today:vToday,fish:vFish,reports:vReports,log:vLog,spots:vSpots})[tab]()+(storageOK?'':'<p class="warn">This browser is not saving data. Your log will be lost when you close the page. Export it first.</p>')}
-function needData(){if(loading)return'<div class="card">Loading tides and weather…</div>';if(loadErr&&!data)return`<div class="card"><p class="warn">${esc(loadErr)}</p><p class="note">Sun, moon and species information still work without a connection. Tides and weather need one.</p></div>`;if(!data)return'<div class="card">No data yet. Tap Refresh.</div>';return''}
+function needData(){if(loading)return'<div class="card">Loading tides and weather…</div>';if(loadErr&&!data)return`<div class="card"><p class="warn">${esc(loadErr)}</p>${loadDiag}<p class="note">Sun, moon and species information still work without a connection. Tides and weather need one.</p></div>`;if(!data)return'<div class="card">No data yet. Tap Refresh.</div>';return''}
 function dayPicker(){const d0=midnight(Date.now());let h='<div class="days">';for(let i=0;i<7;i++){const d=d0+i*DAY,hrs=data?dayHours(d):[],b=hrs.length?bestWindow(hrs):null;
   h+=`<button data-day="${i}" class="${i===dayIdx?'sel':''}">${i===0?'Today':DOW[parts(d).dow]}<small>${b?'best '+b.avg:parts(d).d+' '+MON[parts(d).m-1]}</small></button>`}return h+'</div>'}
 function chart(d0,hrs){const W=360,H=178,L=6,R=354,T=14,B=118,c=data.ctx,x=t=>L+(t-d0)/DAY*(R-L);let s='';
