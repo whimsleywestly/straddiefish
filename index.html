@@ -247,9 +247,12 @@ async function load(force){const sp=spot();loadErr=null;loadDiag='';
   else{const c=S.cache[sp.id];if(force||!c||Date.now()-c.fetched>60*60000){loading=true;render();
     const q=`latitude=${sp.lat}&longitude=${sp.lon}&timezone=Australia%2FBrisbane&past_days=1&forecast_days=7`;
     const wxUrl=`https://api.open-meteo.com/v1/forecast?${q}&wind_speed_unit=kn&hourly=temperature_2m,precipitation,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m`,marUrl=`https://marine-api.open-meteo.com/v1/marine?${q}&hourly=sea_level_height_msl,wave_height,wave_direction,wave_period,sea_surface_temperature`;
-    const [wx,mar]=await Promise.allSettled([getJSON(wxUrl),getJSON(marUrl)]);
+    let [wx,mar]=await Promise.allSettled([getJSON(wxUrl),getJSON(marUrl)]),fb=false;
+    if(wx.status!=='fulfilled'){const q2=`latitude=${sp.lat}&longitude=${sp.lon}&timezone=Australia%2FBrisbane&forecast_days=7`,first=wx; // retry with the plainest possible request
+      [wx,mar]=await Promise.allSettled([getJSON(`https://api.open-meteo.com/v1/forecast?${q2}&hourly=temperature_2m,precipitation,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m`),getJSON(`https://marine-api.open-meteo.com/v1/marine?${q2}&hourly=sea_level_height_msl,wave_height,wave_direction,wave_period,sea_surface_temperature`)]);
+      fb=wx.status==='fulfilled';if(!fb)wx=first}
     loading=false;
-    if(wx.status==='fulfilled'){const h=wx.value.hourly,n={fetched:Date.now(),wx:{t:toMs(h.time),wind:h.wind_speed_10m,gust:h.wind_gusts_10m,wdir:h.wind_direction_10m,pres:h.pressure_msl,rain:h.precipitation,temp:h.temperature_2m},mar:null};
+    if(wx.status==='fulfilled'){const h=wx.value.hourly;if(fb){const k=v=>v==null?null:v*0.539957;h.wind_speed_10m=h.wind_speed_10m.map(k);h.wind_gusts_10m=h.wind_gusts_10m.map(k)}const n={fb,fetched:Date.now(),wx:{t:toMs(h.time),wind:h.wind_speed_10m,gust:h.wind_gusts_10m,wdir:h.wind_direction_10m,pres:h.pressure_msl,rain:h.precipitation,temp:h.temperature_2m},mar:null};
       if(mar.status==='fulfilled'&&mar.value.hourly){const m=mar.value.hourly;n.mar={t:toMs(m.time),sea:m.sea_level_height_msl,wave:m.wave_height,per:m.wave_period,wavedir:m.wave_direction,sst:m.sea_surface_temperature};if(!n.mar.sea||n.mar.sea.every(v=>v==null))n.mar.sea=null}
       S.cache={[sp.id]:n};save()}
     else{const why=String(wx.reason&&wx.reason.message||wx.reason);let probe='not run';
@@ -313,7 +316,7 @@ function vToday(){const nd=needData();if(nd)return nd;const sp=spot(),c=data.ctx
   h+=`<div class="card"><details><summary>Hour by hour</summary><div class="scroll"><table><tr><th>Time</th><th>Score</th><th>Tide</th><th>Wind</th><th>Waves</th></tr>${hrs.map(x=>{const ts=c.ext.length?tideState(x.t,c.ext):null,se=at(c.mt,c.sea,x.t),ww=at(c.mt,c.wave,x.t);
     return`<tr><td>${fmtTime(x.t)}</td><td><span class="dot" style="background:var(--${grade(x.score)[1]})"></span>${x.score}</td><td>${ts?ts.state:''} ${se!=null?(se>=0?'+':'')+se.toFixed(1):''}</td><td>${Math.round(at(c.wt,c.wind,x.t))} ${compass(at(c.wt,c.wdir,x.t))}</td><td>${ww!=null?ww.toFixed(1):''}</td></tr>`}).join('')}</table></div></details>
    <details><summary>How the score works</summary><p class="note">Every hour starts at 30. Tide movement adds up to 14, a tide turn 8, first light or dusk up to 18, a solunar major 8 or minor 5, new or full moon 4, light wind 8, workable swell 6, falling barometer 4. Wind above 15 kn costs 6 to 25, onshore wind 6, big swell 5 to 18, heavy rain 6, high sun 4. These weights are common fishing rules of thumb, not measured results. Your own log is the test: after 20 or so sessions the stats on the Log tab will show whether the score tracks what you catch here.</p></details>
-   <p class="note">Updated ${fmtTime(data.fetched)} ${fmtDate(data.fetched)}${loadErr?' · offline, showing saved data':''}. Weather and marine data by <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>.</p></div>`;
+   <p class="note">Updated ${fmtTime(data.fetched)} ${fmtDate(data.fetched)}${loadErr?' · offline, showing saved data':''}${data.c.fb?' · loaded on fallback request':''}. Weather and marine data by <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>.</p></div>`;
   return h}
 function vFish(){const sp=spot(),d0=midnight(Date.now())+dayIdx*DAY,list=fishFor(sp,d0+12*HR);let h=data?dayPicker():'';
   const rows=list.map(o=>{let win=null;if(data){const hrs=dayHours(d0,o.f);if(hrs.length)win=bestWindow(hrs)}return{...o,win}}).sort((a,b)=>(b.peak-a.peak)||((b.win?b.win.avg:0)-(a.win?a.win.avg:0)));
