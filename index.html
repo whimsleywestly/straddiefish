@@ -378,10 +378,22 @@ function stats(log){if(!log.length)return'';const fish=log.filter(e=>e.species),
    ${tot<10?'<p class="note">Fewer than 10 fish logged. Treat every pattern below as a hint, not a finding.</p>':''}
    ${bars('By species',tally(e=>e.species))}${bars('By tide',tally(e=>e.cond.tide,withC))}${bars('By light',tally(e=>e.cond.light,withC))}${bars('By moon',tally(moonB,withC))}${bars('By bait',tally(e=>e.bait))}${bars('By bite score when caught',tally(band,withC))}</div>`}
 let found=null;
+const PRESETS=[['Cylinder Beach','Point Lookout, North Stradbroke Island',-27.4262,153.5335,'surf',0,'Stradbroke OR Straddie OR "Point Lookout"'],
+['Frenchman\'s Beach','Point Lookout, North Stradbroke Island',-27.4285,153.5440,'surf',45,'Stradbroke OR Straddie OR "Point Lookout"'],
+['Main Beach','Point Lookout, North Stradbroke Island',-27.4400,153.5440,'surf',90,'Stradbroke OR Straddie'],
+['Flinders Beach','North Stradbroke Island',-27.4050,153.4800,'surf',0,'Stradbroke OR Straddie OR "Flinders Beach"'],
+['Amity Point','North Stradbroke Island',-27.3980,153.4400,'bay',270,'Stradbroke OR Straddie OR "Amity Point"'],
+['Woorim Beach','Bribie Island',-27.0700,153.2050,'surf',90,'Bribie OR Woorim'],
+['Teewah Beach','Noosa North Shore',-26.3300,153.0800,'surf',90,'Teewah OR "Noosa North Shore"'],
+['Rainbow Beach','Cooloola Coast',-25.9020,153.0930,'surf',45,'"Rainbow Beach" OR Cooloola'],
+['Inskip Point','Cooloola Coast',-25.8100,153.0650,'estuary',0,'Inskip OR "Rainbow Beach"'],
+['The Spit','Gold Coast Seaway',-27.9360,153.4290,'rocks',90,'"Gold Coast Seaway" OR "The Spit"']];
 function vSpots(){const dirs=['N','NE','E','SE','S','SW','W','NW'];
   let h=`<div class="card"><h2>Your spots</h2>${S.spots.map(s=>`<div class="item"><div><b>${esc(s.name)}</b> ${s.id===S.active?'<span class="chip sel">showing</span>':''}</div><div class="meta">${esc(s.area||'')} · ${TYPES[s.type]} · ${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}${s.faces!=null?' · faces '+compass(s.faces):''}</div>
     <div class="row">${s.id!==S.active?`<button class="btn small" data-use="${s.id}">Show</button>`:''}${S.spots.length>1?`<button class="btn danger small" data-delspot="${s.id}">Remove</button>`:''}</div></div>`).join('')}</div>`;
-  h+=`<div class="card"><h2>Add a Queensland spot</h2><form id="searchform"><label for="q">Beach, town, river or headland<input id="q" placeholder="e.g. Teewah Beach, Inskip Point, Woorim" required></label><button class="btn">Search</button></form>
+  const have=new Set(S.spots.map(s=>s.name));
+  h+=`<div class="card"><h2>Quick add</h2><p class="note">Popular south-east Queensland spots. Positions are approximate, which is fine for tides and weather.</p><div class="chips">${PRESETS.map((p,i)=>have.has(p[0])?'':`<button class="btn ghost small" data-preset="${i}">${esc(p[0])}</button>`).join('')}</div></div>`;
+  h+=`<div class="card"><h2>Search any Queensland spot</h2><form id="searchform"><label for="q">Beach, town, river or headland<input id="q" placeholder="e.g. Teewah Beach, Inskip Point, Woorim" required></label><button class="btn">Search</button></form>
    ${found==='loading'?'<p class="note">Searching…</p>':found==='fail'?'<p class="warn">Search failed. Check your connection, or enter coordinates below.</p>':Array.isArray(found)?(found.length?found.map((r,i)=>`<div class="item"><div><b>${esc(r.name)}</b></div><div class="meta">${esc([r.admin2,r.admin1].filter(Boolean).join(', '))} · ${r.latitude.toFixed(3)}, ${r.longitude.toFixed(3)}</div><div><button class="btn small" data-pick="${i}">Use this</button></div></div>`).join(''):'<p class="note">No Queensland match. Small beaches are often missing from the place database. Search the nearest town, or enter coordinates below (press and hold the spot in a maps app to get them).</p>'):''}
    <form id="addform"><div class="row"><label for="a-name">Name<input id="a-name" required></label><label for="a-area">Area<input id="a-area"></label></div>
    <div class="row"><label for="a-lat">Latitude<input id="a-lat" type="number" step="any" min="-29.5" max="-9" required></label><label for="a-lon">Longitude<input id="a-lon" type="number" step="any" min="137.9" max="154" required></label></div>
@@ -399,6 +411,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('button,[da
   else if(b.id==='refresh'){load(true)}
   else if(d.day!=null){dayIdx=+d.day;render()}
   else if(d.use){S.active=d.use;save();dayIdx=0;tab='today';reddit=null;load(false)}
+  else if(d.preset!=null){const p=PRESETS[+d.preset],id='s'+Date.now().toString(36);S.spots.push({id,name:p[0],area:p[1],lat:p[2],lon:p[3],type:p[4],faces:p[5],keywords:p[6],local:[]});S.active=id;save();tab='today';dayIdx=0;reddit=null;load(true)}
   else if(d.delspot){S.spots=S.spots.filter(s=>s.id!==d.delspot);if(S.active===d.delspot)S.active=S.spots[0].id;save();load(false)}
   else if(d.pick!=null){const r=found[+d.pick];$('#a-name').value=r.name;$('#a-area').value=[r.admin2,'Queensland'].filter(Boolean).join(', ');$('#a-lat').value=r.latitude;$('#a-lon').value=r.longitude;$('#a-kw').value=r.name;$('#a-name').focus()}
   else if(b.id==='here'){if(!navigator.geolocation)return;navigator.geolocation.getCurrentPosition(p=>{$('#a-lat').value=p.coords.latitude.toFixed(4);$('#a-lon').value=p.coords.longitude.toFixed(4)},()=>{b.textContent='Location not available'})}
