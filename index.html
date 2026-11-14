@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Run-In</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <style>
 /* Layout idea: one column, phone first. Verdict on top, tide chart under it, detail below. Bottom tab bar. */
 :root{
@@ -250,17 +250,17 @@ function demoData(){const t0=midnight(Date.now())-DAY,t=[],sea=[],wave=[],wind=[
   return{tz:TZ,fetched:Date.now(),wx:{t,wind,gust,wdir,pres,rain,temp},mar:{t,sea,wave,per,wavedir,sst}}}
 async function load(force){const sp=spot();loadErr=null;loadDiag='';
   if(demo){S.cache[sp.id]=demoData()}
-  else{const c=S.cache[sp.id];if(force||!c||Date.now()-c.fetched>60*60000){loading=true;render();
+  else{const c=S.cache[sp.id];if(force||!c||Date.now()-c.fetched>2*60*60000){loading=true;build();render();
     const q=`latitude=${sp.lat}&longitude=${sp.lon}&timezone=auto&past_days=1&forecast_days=7`;
     const wxUrl=`https://api.open-meteo.com/v1/forecast?${q}&wind_speed_unit=kn&hourly=temperature_2m,precipitation,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m`,marUrl=`https://marine-api.open-meteo.com/v1/marine?${q}&hourly=sea_level_height_msl,wave_height,wave_direction,wave_period,sea_surface_temperature`;
-    let [wx,mar]=await Promise.allSettled([getJSON(wxUrl),getJSON(marUrl)]),fb=false;
-    if(wx.status!=='fulfilled'){const q2=`latitude=${sp.lat}&longitude=${sp.lon}&timezone=auto&forecast_days=7`,first=wx; // retry with the plainest possible request
+    let wx,mar,fb=false;if(!S.fb)[wx,mar]=await Promise.allSettled([getJSON(wxUrl),getJSON(marUrl)]);
+    if(S.fb||wx.status!=='fulfilled'){const q2=`latitude=${sp.lat}&longitude=${sp.lon}&timezone=auto&forecast_days=7`,first=wx; // retry with the plainest possible request
       [wx,mar]=await Promise.allSettled([getJSON(`https://api.open-meteo.com/v1/forecast?${q2}&hourly=temperature_2m,precipitation,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m`),getJSON(`https://marine-api.open-meteo.com/v1/marine?${q2}&hourly=sea_level_height_msl,wave_height,wave_direction,wave_period,sea_surface_temperature`)]);
-      fb=wx.status==='fulfilled';if(!fb)wx=first}
+      fb=wx.status==='fulfilled';if(!fb&&first)wx=first}
     loading=false;
     if(wx.status==='fulfilled'){const h=wx.value.hourly;if(fb){const k=v=>v==null?null:v*0.539957;h.wind_speed_10m=h.wind_speed_10m.map(k);h.wind_gusts_10m=h.wind_gusts_10m.map(k)}const off=(wx.value.utc_offset_seconds||0)*1000;sp.tz=off;const n={fb,tz:off,fetched:Date.now(),wx:{t:toMs(h.time,off),wind:h.wind_speed_10m,gust:h.wind_gusts_10m,wdir:h.wind_direction_10m,pres:h.pressure_msl,rain:h.precipitation,temp:h.temperature_2m},mar:null};
       if(mar.status==='fulfilled'&&mar.value.hourly){const m=mar.value.hourly;n.mar={t:toMs(m.time,(mar.value.utc_offset_seconds||0)*1000),sea:m.sea_level_height_msl,wave:m.wave_height,per:m.wave_period,wavedir:m.wave_direction,sst:m.sea_surface_temperature};if(!n.mar.sea||n.mar.sea.every(v=>v==null))n.mar.sea=null}
-      S.cache={[sp.id]:n};save()}
+      S.cache[sp.id]=n;const ks=Object.keys(S.cache).sort((a,b)=>S.cache[b].fetched-S.cache[a].fetched);for(const k of ks.slice(6))delete S.cache[k];if(fb)S.fb=true;save()}
     else{const why=String(wx.reason&&wx.reason.message||wx.reason);let probe='not run';
       try{const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${sp.lat}&longitude=${sp.lon}&current=temperature_2m`);probe='HTTP '+r.status}catch(x){probe='failed ('+(x&&x.message)+')'}
       loadErr='Forecast request failed. Reason: '+why+'. Simple test request: '+probe+'. Page opened as '+location.protocol+'//'+location.host+'. Marine request: '+(mar.status==='fulfilled'?'ok':String(mar.reason&&mar.reason.message))+'.';
@@ -277,10 +277,10 @@ function condAt(ms){if(!data)return null;const c=data.ctx,ts=c.ext.length?tideSt
 
 /* --- Views --- */
 function render(){const sp=spot();$('#spotname').textContent=sp.name;$('#spotsub').textContent=(sp.area?sp.area+' · ':'')+TYPES[sp.type]+' · tap to change';
-  $('#banner').innerHTML=demo?'<div class="banner">Demo data. Not a forecast.</div>':'';
+  $('#refresh').textContent=loading?'Updating…':'Refresh';$('#banner').innerHTML=demo?'<div class="banner">Demo data. Not a forecast.</div>':'';
   $('#tabs').innerHTML=[['today','Today'],['fish','Fish'],['reports','Reports'],['log','Log'],['spots','Spots']].map(([k,l])=>`<button data-tab="${k}" class="${tab===k?'sel':''}">${l}</button>`).join('');
   $('#view').innerHTML=({today:vToday,fish:vFish,reports:vReports,log:vLog,spots:vSpots})[tab]()+(storageOK?'':'<p class="warn">This browser is not saving data. Your log will be lost when you close the page. Export it first.</p>')}
-function needData(){if(loading)return'<div class="card">Loading tides and weather…</div>';if(loadErr&&!data)return`<div class="card"><p class="warn">${esc(loadErr)}</p>${loadDiag}<p class="note">Sun, moon and species information still work without a connection. Tides and weather need one.</p></div>`;if(!data)return'<div class="card">No data yet. Tap Refresh.</div>';return''}
+function needData(){if(loading&&!data)return'<div class="card">Loading tides and weather…</div>';if(loadErr&&!data)return`<div class="card"><p class="warn">${esc(loadErr)}</p>${loadDiag}<p class="note">Sun, moon and species information still work without a connection. Tides and weather need one.</p></div>`;if(!data)return'<div class="card">No data yet. Tap Refresh.</div>';return''}
 function dayPicker(){const d0=midnight(Date.now());let h='<div class="days">';for(let i=0;i<7;i++){const d=d0+i*DAY,hrs=data?dayHours(d):[],b=hrs.length?bestWindow(hrs):null;
   h+=`<button data-day="${i}" class="${i===dayIdx?'sel':''}">${i===0?'Today':DOW[parts(d).dow]}<small>${b?'best '+b.avg:parts(d).d+' '+MON[parts(d).m-1]}</small></button>`}return h+'</div>'}
 function chart(d0,hrs){const W=360,H=178,L=6,R=354,T=14,B=118,c=data.ctx,x=t=>L+(t-d0)/DAY*(R-L);let s='';
