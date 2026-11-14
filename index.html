@@ -249,23 +249,32 @@ function demoData(){const t0=midnight(Date.now())-DAY,t=[],sea=[],wave=[],wind=[
   for(let i=0;i<9*24;i++){const x=t0+i*HR,h=i;t.push(x);sea.push(0.75*Math.sin(2*Math.PI*h/12.42)+0.2*Math.sin(2*Math.PI*h/24.8+1));wave.push(1+0.4*Math.sin(h/30));
    wind.push(9+6*Math.sin(h/9));gust.push(14+7*Math.sin(h/9));wdir.push(140+30*Math.sin(h/20));pres.push(1014+3*Math.sin(h/40));rain.push(0);temp.push(24+4*Math.sin((h-9)/24*2*Math.PI));sst.push(24.1);per.push(8);wavedir.push(120)}
   return{tz:TZ,fetched:Date.now(),wx:{t,wind,gust,wdir,pres,rain,temp},mar:{t,sea,wave,per,wavedir,sst}}}
+// Backup weather source: MET Norway's global forecast. Used when Open-Meteo's weather host cannot be reached from the browser.
+async function metno(lat,lon){const j=await getJSON(`https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}`);
+  const pts=j.properties.timeseries.map(x=>{const d=x.data.instant.details,n1=x.data.next_1_hours,n6=x.data.next_6_hours;
+    return{t:Date.parse(x.time),w:d.wind_speed*1.94384,dir:d.wind_from_direction,p:d.air_pressure_at_sea_level,temp:d.air_temperature,r:n1&&n1.details?n1.details.precipitation_amount:n6&&n6.details?n6.details.precipitation_amount/6:0}});
+  const o={t:[],wind:[],gust:[],wdir:[],pres:[],rain:[],temp:[]};let k=0;
+  for(let t=Math.ceil(pts[0].t/HR)*HR;t<=pts[pts.length-1].t;t+=HR){while(k<pts.length-2&&pts[k+1].t<=t)k++;const a=pts[k],b=pts[k+1],f=Math.max(0,Math.min(1,(t-a.t)/(b.t-a.t))),L=(x,y)=>x+(y-x)*f;
+    o.t.push(t);o.wind.push(L(a.w,b.w));o.gust.push(null);o.wdir.push(f<.5?a.dir:b.dir);o.pres.push(L(a.p,b.p));o.temp.push(L(a.temp,b.temp));o.rain.push(a.r)}
+  return o}
 async function load(force){const sp=spot();loadErr=null;loadDiag='';
   if(demo){S.cache[sp.id]=demoData()}
   else{const c=S.cache[sp.id];if(force||!c||Date.now()-c.fetched>2*60*60000){loading=true;build();render();
     const q=`latitude=${sp.lat}&longitude=${sp.lon}&timezone=auto&past_days=1&forecast_days=7`;
     const wxUrl=`https://api.open-meteo.com/v1/forecast?${q}&wind_speed_unit=kn&hourly=temperature_2m,precipitation,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m`,marUrl=`https://marine-api.open-meteo.com/v1/marine?${q}&hourly=sea_level_height_msl,wave_height,wave_direction,wave_period,sea_surface_temperature`;
-    let wx,mar,fb=false;if(!S.fb)[wx,mar]=await Promise.allSettled([getJSON(wxUrl),getJSON(marUrl)]);
-    if(S.fb||wx.status!=='fulfilled'){const q2=`latitude=${sp.lat}&longitude=${sp.lon}&timezone=auto&forecast_days=7`,first=wx; // retry with the plainest possible request
-      [wx,mar]=await Promise.allSettled([getJSON(`https://api.open-meteo.com/v1/forecast?${q2}&hourly=temperature_2m,precipitation,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m`),getJSON(`https://marine-api.open-meteo.com/v1/marine?${q2}&hourly=sea_level_height_msl,wave_height,wave_direction,wave_period,sea_surface_temperature`)]);
-      fb=wx.status==='fulfilled';if(!fb&&first)wx=first}
+    const [wx,mar]=await Promise.allSettled([getJSON(wxUrl),getJSON(marUrl)]);
+    const marOff=mar.status==='fulfilled'&&mar.value.utc_offset_seconds!=null?mar.value.utc_offset_seconds*1000:null;
+    let n=null,why='',why2='';
+    if(wx.status==='fulfilled'&&wx.value.hourly){const h=wx.value.hourly,off=(wx.value.utc_offset_seconds||0)*1000;
+      n={src:'open-meteo',tz:off,wx:{t:toMs(h.time,off),wind:h.wind_speed_10m,gust:h.wind_gusts_10m,wdir:h.wind_direction_10m,pres:h.pressure_msl,rain:h.precipitation,temp:h.temperature_2m}}}
+    else{why=String(wx.reason&&wx.reason.message||wx.reason||'empty reply');
+      try{const w=await metno(sp.lat,sp.lon);n={src:'metno',tz:marOff!=null?marOff:sp.tz!=null?sp.tz:Math.round(sp.lon/15)*HR,wx:w}}catch(x){why2=String(x&&x.message||x)}}
     loading=false;
-    if(wx.status==='fulfilled'){const h=wx.value.hourly;if(fb){const k=v=>v==null?null:v*0.539957;h.wind_speed_10m=h.wind_speed_10m.map(k);h.wind_gusts_10m=h.wind_gusts_10m.map(k)}const off=(wx.value.utc_offset_seconds||0)*1000;sp.tz=off;const n={fb,tz:off,fetched:Date.now(),wx:{t:toMs(h.time,off),wind:h.wind_speed_10m,gust:h.wind_gusts_10m,wdir:h.wind_direction_10m,pres:h.pressure_msl,rain:h.precipitation,temp:h.temperature_2m},mar:null};
-      if(mar.status==='fulfilled'&&mar.value.hourly){const m=mar.value.hourly;n.mar={t:toMs(m.time,(mar.value.utc_offset_seconds||0)*1000),sea:m.sea_level_height_msl,wave:m.wave_height,per:m.wave_period,wavedir:m.wave_direction,sst:m.sea_surface_temperature};if(!n.mar.sea||n.mar.sea.every(v=>v==null))n.mar.sea=null}
-      S.cache[sp.id]=n;const ks=Object.keys(S.cache).sort((a,b)=>S.cache[b].fetched-S.cache[a].fetched);for(const k of ks.slice(6))delete S.cache[k];if(fb)S.fb=true;save()}
-    else{const why=String(wx.reason&&wx.reason.message||wx.reason);let probe='not run';
-      try{const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${sp.lat}&longitude=${sp.lon}&current=temperature_2m`);probe='HTTP '+r.status}catch(x){probe='failed ('+(x&&x.message)+')'}
-      loadErr='Forecast request failed. Reason: '+why+'. Simple test request: '+probe+'. Page opened as '+location.protocol+'//'+location.host+'. Marine request: '+(mar.status==='fulfilled'?'ok':String(mar.reason&&mar.reason.message))+'.';
-      loadDiag=`<p class="note">Send Claude the line above. Then tap each link and say what the new tab shows: <a href="${wxUrl}" target="_blank" rel="noopener">weather test</a> · <a href="${marUrl}" target="_blank" rel="noopener">tide test</a></p>`}}}
+    if(n){n.fetched=Date.now();n.mar=null;sp.tz=n.tz;
+      if(mar.status==='fulfilled'&&mar.value.hourly){const m=mar.value.hourly;n.mar={t:toMs(m.time,marOff||0),sea:m.sea_level_height_msl,wave:m.wave_height,per:m.wave_period,wavedir:m.wave_direction,sst:m.sea_surface_temperature};if(!n.mar.sea||n.mar.sea.every(v=>v==null))n.mar.sea=null}
+      S.cache[sp.id]=n;const ks=Object.keys(S.cache).sort((a,b)=>S.cache[b].fetched-S.cache[a].fetched);for(const k of ks.slice(6))delete S.cache[k];save()}
+    else{loadErr='Weather could not be loaded. Main source: '+why+'. Backup source: '+why2+'. Tide source: '+(mar.status==='fulfilled'?'ok':String(mar.reason&&mar.reason.message))+'. Page: '+location.protocol+'//'+location.host+'.';
+      loadDiag=`<p class="note">Send Claude the line above. Then tap this link and say what the new tab shows: <a href="${wxUrl}" target="_blank" rel="noopener">weather test</a></p>`}}}
   build();render()}
 function build(){const sp=spot(),c=S.cache[sp.id];TZ=(c&&c.tz!=null)?c.tz:sp.tz!=null?sp.tz:Math.round(sp.lon/15)*HR;data=null;if(!c)return;const m=c.mar||{},w=c.wx,memo={};
   const ext=m.sea?tideExtremes(m.t,m.sea):[];let maxRate=0;if(m.sea)for(let i=1;i<m.sea.length;i++)if(m.sea[i]!=null&&m.sea[i-1]!=null)maxRate=Math.max(maxRate,Math.abs(m.sea[i]-m.sea[i-1]));
@@ -307,12 +316,12 @@ function vToday(){const nd=needData();if(nd)return nd;const sp=spot(),c=data.ctx
   h+=`<div class="card"><h2>Tide and bite score, ${fmtDate(d0)}</h2>${chart(d0,hrs)}`;
   const ex=data.ext.filter(e=>e.t>=d0&&e.t<d0+DAY);
   if(ex.length)h+=`<div class="grid">${ex.map(e=>`<div class="stat"><small>${e.type} tide</small><b>${fmtTime(e.t)}</b><span>${(e.h>=0?'+':'')+e.h.toFixed(2)} m from mean sea level</span></div>`).join('')}</div>
-   <p class="note">Tide times come from a global ocean model (Open-Meteo), not a tide gauge. Expect them to be out by up to half an hour or so, more inside bays and rivers. Heights are measured from mean sea level, so they read lower than a BOM table. For anything where timing is critical, check <a href="http://www.bom.gov.au/australia/tides/" target="_blank" rel="noopener">BOM tide predictions</a>.</p>`;
+   <p class="note">Tide times come from a global ocean model (Open-Meteo), not a tide gauge. Expect them to be out by up to half an hour or so on the open coast. ${sp.type==='estuary'||sp.type==='bay'?'<b>Inside rivers, creeks and coastal lakes the real tide runs later and smaller than shown here, sometimes by hours.</b>':'Inside bays and rivers the error is larger.'} Heights are measured from mean sea level, so they read lower than a BOM table. For anything where timing is critical, check <a href="http://www.bom.gov.au/australia/tides/" target="_blank" rel="noopener">BOM tide predictions</a>.</p>`;
   h+='</div>';
   const t=dayIdx===0?now:best.start,w=at(c.wt,c.wind,t),wd=at(c.wt,c.wdir,t),gu=at(c.wt,data.c.wx.gust,t),p=at(c.wt,c.pres,t),p0=at(c.wt,c.pres,t-3*HR),m=data.c.mar||{};
   const st=(l,b,s)=>`<div class="stat"><small>${l}</small><b>${b}</b><span>${s||'&nbsp;'}</span></div>`;
   h+=`<div class="card"><h2>Conditions ${dayIdx===0?'now':'at '+fmtTime(t)}</h2><div class="grid">
-   ${st('Wind',Math.round(w)+' kn '+compass(wd),'gusts '+Math.round(gu)+' kn'+(sp.faces!=null?(angDiff(wd,sp.faces)<60?' · onshore':angDiff(wd,sp.faces)>120?' · offshore':' · cross-shore'):''))}
+   ${st('Wind',Math.round(w)+' kn '+compass(wd),(gu!=null?'gusts '+Math.round(gu)+' kn':'gusts not available')+(sp.faces!=null?(angDiff(wd,sp.faces)<60?' · onshore':angDiff(wd,sp.faces)>120?' · offshore':' · cross-shore'):''))}
    ${wv!=null?st('Waves',wv.toFixed(1)+' m',Math.round(at(m.t,m.per,t))+' s from '+compass(at(m.t,m.wavedir,t))):''}
    ${at(m.t,m.sst,t)!=null?st('Water',at(m.t,m.sst,t).toFixed(1)+' °C',''):''}
    ${st('Air',Math.round(at(c.wt,data.c.wx.temp,t))+' °C','rain '+(at(c.wt,c.rain,t)||0).toFixed(1)+' mm/h')}
@@ -323,7 +332,7 @@ function vToday(){const nd=needData();if(nd)return nd;const sp=spot(),c=data.ctx
   h+=`<div class="card"><details><summary>Hour by hour</summary><div class="scroll"><table><tr><th>Time</th><th>Score</th><th>Tide</th><th>Wind</th><th>Waves</th></tr>${hrs.map(x=>{const ts=c.ext.length?tideState(x.t,c.ext):null,se=at(c.mt,c.sea,x.t),ww=at(c.mt,c.wave,x.t);
     return`<tr><td>${fmtTime(x.t)}</td><td><span class="dot" style="background:var(--${grade(x.score)[1]})"></span>${x.score}</td><td>${ts?ts.state:''} ${se!=null?(se>=0?'+':'')+se.toFixed(1):''}</td><td>${Math.round(at(c.wt,c.wind,x.t))} ${compass(at(c.wt,c.wdir,x.t))}</td><td>${ww!=null?ww.toFixed(1):''}</td></tr>`}).join('')}</table></div></details>
    <details><summary>How the score works</summary><p class="note">Every hour starts at 30. Tide movement adds up to 14, a tide turn 8, first light or dusk up to 18, a solunar major 8 or minor 5, new or full moon 4, light wind 8, workable swell 6, falling barometer 4. Wind above 15 kn costs 6 to 25, onshore wind 6, big swell 5 to 18, heavy rain 6, high sun 4. These weights are common fishing rules of thumb, not measured results. Your own log is the test: after 20 or so sessions the stats on the Log tab will show whether the score tracks what you catch here.</p></details>
-   <p class="note">Updated ${fmtTime(data.fetched)} ${fmtDate(data.fetched)}${loadErr?' · offline, showing saved data':''}${data.c.fb?' · loaded on fallback request':''}. Weather and marine data by <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>.</p></div>`;
+   <p class="note">Updated ${fmtTime(data.fetched)} ${fmtDate(data.fetched)}${loadErr?' · offline, showing saved data':''}${data.c.src==='metno'?'. Weather from the backup source, <a href="https://api.met.no/" target="_blank" rel="noopener">MET Norway</a> (no gusts, coarser after two days); tides and waves by':'. Weather, tides and waves by'} <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>.</p></div>`;
   return h}
 function vFish(){const sp=spot(),qld=isQld(sp),st=stateOf(sp),d0=midnight(Date.now())+dayIdx*DAY,nsw=st==='New South Wales',list=fishFor(sp,d0+12*HR).filter(o=>!(nsw&&['kgw','herring','barra','queenfish','grunter','threadfin'].includes(o.f.id))).map(o=>qld?o:{...o,closed:null});let h=data?dayPicker():'';
   const rows=list.map(o=>{let win=null;if(data){const hrs=dayHours(d0,o.f);if(hrs.length)win=bestWindow(hrs)}return{...o,win}}).sort((a,b)=>(b.peak-a.peak)||((b.win?b.win.avg:0)-(a.win?a.win.avg:0)));
